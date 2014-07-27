@@ -6,10 +6,14 @@
 
 // I/O Pins
 #define NeoPixelPIN 9
-#define ButtonPIN 2
-#define BuzzerPIN 3
-#define LEDPIN 10
-#define FSRPIN 5
+//#define ButtonPIN 2
+#define BuzzerPIN A3
+//#define LEDPIN 10
+#define FSRPIN A5
+
+#define ButtonDownPIN 11
+#define ButtonInPIN 10 
+#define ButtonUpPIN 3 
 
 #define toneC    1911
 #define toneC1    1804
@@ -115,12 +119,15 @@ void (*modes[])(boolean) = {
 void setup() {
   // We'll send debugging information via the Serial monitor
   Serial.begin(9600);   
-  pinMode ( LEDPIN, OUTPUT );
-  digitalWrite ( LEDPIN, LOW );
   
   // Initialize the strip
   strip.begin();
   setBrightnessCustom();
+  
+  // Initialize the 3-Way Button
+  pinMode(ButtonDownPIN,INPUT);
+  pinMode(ButtonInPIN,INPUT);
+  pinMode(ButtonUpPIN,INPUT);
 
   // Set initial power-on hug level
   initHugPower(8);
@@ -155,11 +162,11 @@ void loop(){
 
  }
  playToneHappy();
- modeNumber = (modeNumber + 1) % 6;
+ modeNumber = (modeNumber + 1) % 5;
  
  //sleepMode
- if (modeNumber == 5)
-   sleepMode(true);
+ // if (modeNumber == 5)
+ //   sleepMode(true);
 }
 
 
@@ -395,19 +402,21 @@ uint32_t Wheel(byte WheelPos) {
 
 
 
-
-
+// LED Button
+//void glowLED(int brightness){
+//  analogWrite(LEDPIN, brightness);
+//}
 
 
 
 // TOUCH/BUTTON FUNCTIONS
 
 boolean touched(){
-  return (digitalRead(ButtonPIN) == HIGH);
+  //return (digitalRead(ButtonPIN) == HIGH);
+  return (digitalRead(ButtonInPIN) == LOW);
 }
 
 void readTouchType(){ 
-  digitalWrite ( LEDPIN, LOW );  
   touchType = captureTouch();
 }
 
@@ -429,37 +438,72 @@ boolean held(){
 
 
 
+
+//new hardware
+boolean downButtonPressed(){
+  return (digitalRead(ButtonDownPIN) == LOW);
+}
+
+boolean modeButtonPressed(){
+  return (digitalRead(ButtonInPIN) == LOW);
+}
+
+boolean upButtonPressed(){
+  return (digitalRead(ButtonUpPIN) == LOW);
+}
+
+
 // 0 = no touch, 1 = single-click, 2 = double-click, 3 = hold
 int captureTouch(){
-  if (touched()){
-     // Acknowledge Touch
-    digitalWrite(LEDPIN, HIGH);
-     // Determine Type of Touch
-     // Capture next 300ms of button input
-     // read for 300 milliseconds; record in 10 ms increments
-     for (int ms = captureWindow, i = 0; ms >= 0; ms-=10, i++){
-       touchReading[i] = digitalRead(ButtonPIN);
-       Serial.print(touchReading[i]);
-       delay(10);
-     }
-     Serial.println(" ");
-  
-    // Read the 300ms of button input
-    for (int i = 0; i <= captureReadings; i++){ 
-      if (touchReading[i]==0){ // It's a Click (because it was let up)
-        // Was it pressed back down?
-        for (; i <= captureReadings; i++){
-          if (touchReading[i]==1){
-            return 2; // It's a Double Click
-          }
-        }
-        return 1; // It's a Single Click
-      }
+
+  if (upButtonPressed() || downButtonPressed())
+    return 1;
+  if (modeButtonPressed()){
+    // if the user holds this button for 1 second it should turn off the displays
+    for (int elapsed_ms = 0; modeButtonPressed(); elapsed_ms += 10){
+      if (elapsed_ms > 1000)
+        playToneHappy();
+      delay(10);
     }
-    return 3; // Hold
-  } else {
-    return 0; // No Touch
-  }
+    return 2;
+  } 
+  if (beingHugged())
+    return 3;
+    
+
+  
+  
+//  if (touched()){
+//     // Acknowledge Touch
+//     // Determine Type of Touch
+//     // Capture next 300ms of button input
+//     // read for 300 milliseconds; record in 10 ms increments
+//     for (int ms = captureWindow, i = 0; ms >= 0; ms-=10, i++){
+//       touchReading[i] = digitalRead(ButtonInPIN);
+//       Serial.print(touchReading[i]);
+//       delay(10);
+//     }
+//     Serial.println(" ");
+//  
+//    // Read the 300ms of button input
+//    for (int i = 0; i <= captureReadings; i++){ 
+//      if (touchReading[i]==1){ // It's a Click (because it was let up)
+//        // Was it pressed back down?
+//        for (; i <= captureReadings; i++){
+//          if (touchReading[i]==0){
+//            return 2; // It's a Double Click
+//          }
+//        }
+//        return 1; // It's a Single Click
+//      }
+//    }
+//    return 3; // Hold
+//  } else {
+//    return 0; // No Touch
+//  }
+  
+  
+  
 }
 
 
@@ -514,7 +558,19 @@ int toggleTimerAction(int periodOn, int periodOff){
     return 0;
 }
  
+ 
+int fsrReading(){
+  return analogRead(FSRPIN);
+}
 
+// 1-8 in hug strength
+int hugStrength(){
+  return (fsrReading() / 100);
+}
+
+int beingHugged(){
+  return (hugStrength() >= 3);
+}
 
 void measureHug(){
   clearPixels();
@@ -523,7 +579,10 @@ void measureHug(){
   
   // Fill Hug Power
   int powerOfHug=0;
-  while (touched()) {
+//  while (touched()) {
+  while (beingHugged()) {
+    Serial.print("Hug Strength: ");
+    Serial.println(hugStrength());
     powerOfHug++;
     delay(400);
   }
@@ -649,19 +708,22 @@ void rainbowAnimatedMode(boolean init) {
 }
 
 void setBrightnessMode(boolean init){
-  
-  if (singleClicked())
+  if (singleClicked()){
     iterateBrightness();
-   
+    delay(500);
+  }  
+
   setAllPixelsToColor(color("white"));
   strip.show();
-
 }
 
 void setColorMode(boolean init){
-  if (singleClicked())
+  if (singleClicked()){
     colorSetting = (colorSetting + 1) % colorSettingsCount;
-
+    strip.show();
+    delay(500);
+  }
+  
   setAllPixelsToColor(color(colorSettings[colorSetting]));
   strip.show();
 }
@@ -671,19 +733,15 @@ void setColorMode(boolean init){
 void flashMode(boolean init){
   
   if (singleClicked()){
-    Serial.println(flashSubMode);
     flashSubMode = (flashSubMode + 1) % 3;
-    Serial.println("clicked");
-    Serial.println(flashSubMode);
   }
-
   
   if (flashSubMode==2)
     flashColor(color("white"), 200,200);
   if (flashSubMode==0)
     flashColor(color("red"), 200,200);    
   else if (flashSubMode==1)
-    flashColor(color("white"), 5,150);  
+    flashColor(color("white"), 5,150);
 }
 
 
