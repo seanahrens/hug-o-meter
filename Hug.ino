@@ -79,8 +79,8 @@ boolean muted = true;
 int numModes = 5;
 void (*modes[])(boolean) = {
     hugPowerMode,  
-    flashMode,
     setColorMode,
+    flashMode,
     setBrightnessMode,
     volumeMode
 };
@@ -252,36 +252,30 @@ void playToneSad(){
 
 
 //COLOR & LED HELPERS
+void neoClear(){
+  neoSetAll("black");
+}
+
 void neoSetAll(String color_name){  
   neoSetRange(color_name,0,strip.numPixels());
+}
+
+void neoSetCenter(String color_name){
+  strip.setPixelColor(neoAllOffset(NeoCenterLED), color(color_name));
+  strip.show();
 }
 
 void neoFlashAll(String color_name, int periodOn, int periodOff){  
   neoFlashRange(color_name, 0, strip.numPixels(), periodOn, periodOff);
 }
 
-// CLEAR
-void neoClear(){
-  neoSetAll("black");
-  strip.show();
-}
-//void clearPixels(){
-//  for (int i = 0; i < strip.numPixels() + 1; i++) {
-//    setPixelColor(i, color("black"));
-//  }
+void neoFlashCenter(String color_name){
+//  strip.setPixelColor(neoAllOffset(NeoCenterLED), color(color_name));
 //  strip.show();
-//}
-
-//rename to neoSetCenter
-void neoCenter(String color_name){
-  strip.setPixelColor(neoAllOffset(NeoCenterLED), color(color_name));
-  strip.show();
 }
 
 
 //Range of Pixels
-// THIS FUNCTION IS THE SAME AS BELOW Ecept its an actual range, and does strip.show
-// previously neoRange
 void neoSetRange(String color_name, int start_point, int end_point){
   int n = end_point - start_point;
 
@@ -314,34 +308,6 @@ void neoSetRange(String color_name, int start_point, int end_point){
   strip.show();
 }
 
-//void neoSetRangeRainbow(int start_point, int end_point){
-//  int n = end_point - start_point;
-//  for (int i=start_point; i < (start_point + n); i++) {
-//    setPixelToRainbow(i % strip.numPixels());
-//  }
-//  strip.show();
-//}
-
-
-//
-//void flashColor(uint32_t c, int periodOn, int periodOff){   
-//   int toggleAction = toggleTimerAction(periodOn, periodOff);
-////   Serial.print("toggle action: ");
-////   Serial.println(toggleAction);
-//   if (toggleAction == 1){
-//     setAllPixelsToColor(c);
-//     strip.show();
-//     onNow = true;
-//   } else if (toggleAction == 2) {
-//     setAllPixelsToColor(color("black"));
-//     strip.show(); 
-//     onNow = false;
-//   }
-//}
-
-
- 
-
 void neoFlashRange(String color_name, int start_point, int end_point, int periodOn, int periodOff){  
   int toggleAction = toggleTimerAction(periodOn, periodOff);
   
@@ -354,18 +320,7 @@ void neoFlashRange(String color_name, int start_point, int end_point, int period
   }
 }
 
-//void flashNearDeath(int i){
-//  setPixelColor(i, color("black")); 
-//  strip.show();
-//  delay(300);
-//  setPixelColor(i, rainbowColor(i)); 
-//  strip.show();
-//  delay(400);
-//} 
 
-
-
-// 1 Pixel
 void setPixelColor(int i, uint32_t c){
   strip.setPixelColor(neoRingOffset(i), c); 
 }
@@ -374,46 +329,6 @@ void setPixelToRainbow(int i){
   setPixelColor(i, rainbowColor(i)); 
 }
 
-//N pixels
-//void setNPixelsToColor(int n, uint32_t c){
-//  setPixelRangeToColor(0,n,c);
-//}
-//
-//void setNPixelsToRainbow(int n){
-//  setPixelRangeToRainbow(0,n);
-//}
-
-
-
-
-//Range of Pixels
-//void setPixelRangeToColor(int start_point, int n, uint32_t c){
-//  if (n > 0){
-//    for (int i=start_point; i < start_point + n; i++) {
-//      setPixelColor(i % strip.numPixels(), c);
-//    }
-//  } else {
-//    for (int i=start_point; i > start_point + n; i--) {
-//      setPixelColor(i % strip.numPixels(), c);
-//    }    
-//  }
-//  strip.show();
-//}
-
-//void setPixelRangeToRainbow(int start_point, int n){
-//  for (int i=start_point; i < (start_point + n); i++) {
-//    setPixelToRainbow(i % strip.numPixels());
-//  }
-//}
-
-// All Pixels
-//void setAllPixelsToColor(uint32_t c){
-//  setNPixelsToColor(strip.numPixels(), c);
-//}
-//
-//void setAllPixelsToRainbow(){
-//  setNPixelsToRainbow(strip.numPixels());
-//}
 
 
 
@@ -464,6 +379,8 @@ uint32_t color(String name){
     strip.Color(255,255,255);
   else if (name == "black")
     strip.Color(0,0,0);
+  else if (name == "brown")
+    strip.Color(139,69,19); 
   else
     strip.Color(255,255,255);
 }
@@ -610,21 +527,22 @@ void measureHug(){
   int elapsed_ms = 0;
   
   while (beingHugged()) {
+
+    // Read Force
+    numHugReadings++;
+    intHugStrength = hugStrength();
+    hugStrengthAvg = ((hugStrengthAvg * (numHugReadings-1)) + intHugStrength) / numHugReadings;     
+    addedHugPower = sqrt((hugStrengthAvg * numHugReadings) / 2);
+    top = min((hugPower + addedHugPower),hugPowerMax);
+
+    if ((numHugReadings % 5) == 0)
+      playToneHappy();
+ 
     //Animate Hug Measurement
     neoFlashRange("rainbow", hugPower, top, 200, 200);
     delay(200);
     elapsed_ms += 200;
     
-    // Every n MS, measure the intensity and add it to the averages.
-    if (elapsed_ms % 500 == 0){
-      playToneHappy();
-      numHugReadings++;
-      intHugStrength = hugStrength();
-      hugStrengthAvg = ((hugStrengthAvg * 2 * (numHugReadings-1)) + intHugStrength) / numHugReadings;     
-      addedHugPower = sqrt(sqrt(hugStrengthAvg * numHugReadings));
-      top = min((hugPower + addedHugPower),hugPowerMax);
-    }
-
   }
   
   // Show off the added hug for a bit longer so the hugger can see
@@ -651,8 +569,10 @@ int numHugSubModes = 2;
 int HugSubMode;
 
 void hugPowerMode(boolean init) {  
-  if (init)
+  if (init){
     HugSubMode = 0;
+    neoSetCenter("red");
+  }
   
   if (upButtonPressed()){
     HugSubMode = (numHugSubModes + HugSubMode + 1) % numHugSubModes;
@@ -664,6 +584,8 @@ void hugPowerMode(boolean init) {
     neoClear();
     delay(300);
   }
+  
+
   
   if (HugSubMode==0){
     neoSetRange("rainbow",0,hugPower);  
@@ -733,8 +655,9 @@ void setBrightnessMode(boolean init){
     delay(500);
   }  
 
-  neoSetAll("white");
-  neoCenter("white");
+  neoSetCenter("white");
+  neoSetRange("white", 1,7);
+  neoSetRange("white", 8,15);
 }
 
 void setBrightness(){
@@ -752,7 +675,7 @@ void setColorMode(boolean init){
   }
   
   neoSetAll(colorSettings[neoRingColor]);
-  neoCenter(colorSettings[neoCenterColor]);
+  neoSetCenter(colorSettings[neoCenterColor]);
   strip.show();
 }
 
@@ -763,58 +686,63 @@ int submode = 0;
 int flashSubMode = 0;
 
 void flashMode(boolean init){
-  int numSubModes = 5;
+  int numSubModes = 7;
   
   if (upButtonPressed()){
-    flashSubMode = min(numSubModes-1,(flashSubMode + 1));
-    delay(200);
+    flashSubMode = (numSubModes + flashSubMode + 1) % numSubModes;
+    delay(500);
   }
   if (downButtonPressed()){
-    flashSubMode = max(0,(flashSubMode - 1));
-    delay(200);
+    flashSubMode =  (numSubModes + flashSubMode - 1) % numSubModes;
+    delay(500);
   }
 
-  if (flashSubMode==0)
+
+
+  if (flashSubMode==0){
+    //burning man symbol
+    neoClear();
+    neoSetRange("brown",1,2);
+    neoSetRange("brown",5,6);
+    neoSetRange("brown",10,11);
+    neoSetRange("brown",14,15);
+    neoSetCenter("brown");
+
+  } else if (flashSubMode != 1)
+    neoSetCenter("black");
+  
+  if (flashSubMode==1)
     neoSetAll("rainbow");
-  else if (flashSubMode==1)
-    neoFlashAll("rainbow",200,200);
   else if (flashSubMode==2)
-    neoFlashAll("red", 200,200);    
+    neoFlashAll("rainbow",200,200);
   else if (flashSubMode==3)
-    neoFlashAll("white", 200,200);
+    neoFlashAll("red", 200,200);    
   else if (flashSubMode==4)
+    neoFlashAll("white", 200,200);
+  else if (flashSubMode==5)
     neoFlashAll("white", 5,150);
+  else if (flashSubMode==6){
+    //jumping burning man symbol
+    neoClear();
+    neoSetRange("brown",1,2);
+    neoSetRange("brown",5,6);
+    neoSetRange("brown",10,11);
+    neoSetRange("brown",14,15);
+    neoSetCenter("brown");
+    
+    delay(800);
+
+    neoClear();     
+    neoSetRange("brown",0,1);
+    neoSetRange("brown",6,7);
+    neoSetRange("brown",9,10);
+    neoSetRange("brown",15,16);
+    neoSetCenter("brown");
+    
+    delay(800);
+  }
 }
 
-//
-//int numRainbowSubModes = 3;
-//int RainbowSubMode;
-//
-//void rainbowMode(boolean init) {
-//  if (init)
-//    RainbowSubMode = 0;
-//  
-//  if (upButtonPressed()){
-//    RainbowSubMode = min(numRainbowSubModes-1,(RainbowSubMode + 1));
-//    delay(200);
-//  }
-//  if (downButtonPressed()){
-//    RainbowSubMode = max(0,(RainbowSubMode - 1));
-//    delay(200);
-//  }
-//  
-//  if (RainbowSubMode==0){
-//    setAllPixelsToRainbow();
-//    strip.show();   
-//  } else if (RainbowSubMode==1){
-//    rainbow(); 
-//  } else if (RainbowSubMode==2){
-//    rainbowCycle();
-//  }
-//  //FIXME BUG ON THIS ONLY SHOWING 2 modes
-//}
-//
-//
 //void rainbowAnimatedMode(boolean init) {
 //  if (init){
 //    p=1;
@@ -844,10 +772,24 @@ void volumeMode(boolean init){
     neoClear();
   }
   
-  if (muted)
-    neoSetRange("white",10,12);
-  else
-    neoSetRange("white",4,16);
+  if (muted){
+    // Ears
+    neoSetRange("white",2,3);
+    neoSetRange("white",11,12);
+
+    // Looks like a strike through the ears    
+    neoSetCenter("red");
+    neoSetRange("red",3,4);   
+    neoSetRange("red",12,13);  
+    neoSetRange("red",1,2);   
+    neoSetRange("red",10,11);     
+  }
+  else {
+    // Ears
+    neoSetCenter("black");
+    neoSetRange("white",1,4);
+    neoSetRange("white",10,13);
+  }
  
 }
 
