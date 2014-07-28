@@ -6,6 +6,7 @@
 
 // NEOPIXEL RING
 #define NeoPixelPIN 9
+
 // SPEAKER
 #define BuzzerPIN A3
 // FORCE SENSOR
@@ -18,7 +19,12 @@
 // Set up
 // NEOPIXEL SETUP
 #define NeoPixelOffset 7
+#define NeoCenterLED 6
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(17, NeoPixelPIN, NEO_GRB + NEO_KHZ800);
+int neoCenterColor = 1;
+int neoRingColor = 1;
+int colorSettingsCount = 7;
+String colorSettings[7] = {"red","orange","yellow","green","blue","violet","white"};
 
 // SPEAKER SETUP
 #define toneC    1911
@@ -52,32 +58,31 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(17, NeoPixelPIN, NEO_GRB + NEO_KHZ80
 // GLOBAL VARIABLES
 
 // GLOBAL HUG VARIABLES
-int hugPower; 
-int hugPowerMax = 12; //8;
+int hugPower = 8; //starting level
+int hugPowerMax = 17; //0-15 (16 options) one of these is the center pixel
 int totalHugs = 0;
 unsigned long timeOfLastHug;
 int p;
-int hugPowerResiliance[16] =  { 112,104,96,88,  80,72,64,56,  48,40,32,24,  16, 8, 4, 2 };
-            
+int hugPowerResilianceUnitary[18] =  { 3600,3600,  3600,3600,1800,1800,  600,600,300,300,  60,60,60,30,  16, 8, 4, 2 };
+//int hugPowerResiliance[18] =  { 140,130,  112,104,96,88,  80,72,64,56,  48,40,32,24,  16, 8, 4, 2 };
+int hugPowerResiliance[18];            
                            
 
 // GLOBAL MODE-SELECTION VARIABLES
 void breakOnTap(void (*mode_func)(boolean init));
 boolean onNow = false;
 int modeNumber = 0;
-int submode = 0;
-int flashSubMode = 2;
 unsigned long timeToggled;
-boolean muted = false;
+boolean muted = true;
 
 // THE MODES AVAILABLE
+int numModes = 5;
 void (*modes[])(boolean) = {
-    hugPowerMode, 
-    setBrightnessMode,
-    volumeMode, 
+    hugPowerMode,  
+    flashMode,
     setColorMode,
-    rainbowMode,
-    flashMode
+    setBrightnessMode,
+    volumeMode
 };
 
 
@@ -109,11 +114,14 @@ void setup() {
   pinMode(ButtonUpPIN,INPUT);
 
 
-
-
-
-  // GRANT INITIAL HUG POWER
-  initHugPower(16);
+  // SET HUG TIME NOW
+  setTimeOfLastHugToNow();
+  for (int i = 17; i >= 0; i--){
+    if (i == 17)
+      hugPowerResiliance[i] = hugPowerResilianceUnitary[i]; 
+    else 
+      hugPowerResiliance[i] = hugPowerResiliance[i+1] + hugPowerResilianceUnitary[i]; 
+  }
   
   // BEEP TO LET KNOW ITS ON
   playToneHappy(); playToneHappy();
@@ -124,9 +132,9 @@ void setup() {
 
 void loop(){  
  void (*mode_func)(boolean) = modes[modeNumber];
- clearPixels();
+ neoClear();
  mode_func(true);
- delay(100);
+ delay(300);
  
  while (true){
    // Run the Mode
@@ -142,7 +150,7 @@ void loop(){
 
  }
  playToneHappy();
- modeNumber = (modeNumber + 1) % 6;
+ modeNumber = (modeNumber + 1) % numModes;
 }
 
 
@@ -209,50 +217,32 @@ void playToneSad(){
 
 
 
-// BRIGHTNESS!!!
-
-int brightnessLevels[] = {1, 10, 25, 50, 100, 255};
-int brightnessLevel = 1;
-
-void turnBrightnessUp(){
-  brightnessLevel = min((brightnessLevel + 1), 4); // fix with sizeof
-  setBrightness();
-}
-
-void turnBrightnessDown(){
-  brightnessLevel = max((brightnessLevel - 1), 0); // fix with sizeof
-  setBrightness();
-}
-
-void setBrightness(){
-  strip.setBrightness(brightnessLevels[brightnessLevel]);
-  strip.show();
-}
 
 
-void neoBreathe(){
-  //Written by: Jason Yandell
-  
-  int TOTAL_LEDS = 60;
-  float MaximumBrightness = 50;
-  float SpeedFactor = 0.008; // I don't actually know what would look good
-  float StepDelay = 5; // ms for a step delay on the lights
-  
-  // Make the lights breathe
-  for (int i = 0; i < 65535; i++) {
-    // Intensity will go from 10 - MaximumBrightness in a "breathing" manner
-    float intensity = MaximumBrightness /2.0 * (1.0 + sin(SpeedFactor * i));
-    strip.setBrightness(intensity);
-    // Now set every LED to that color
-    for (int ledNumber=0; ledNumber<TOTAL_LEDS; ledNumber++) {
-      strip.setPixelColor(ledNumber, 0, 0, 255);
-    }
-    
-    strip.show();
-    //Wait a bit before continuing to breathe
-    delay(StepDelay);
-  }
-}
+
+//void neoBreathe(){
+//  //Written by: Jason Yandell
+//  
+//  int TOTAL_LEDS = 60;
+//  float MaximumBrightness = 50;
+//  float SpeedFactor = 0.008; // I don't actually know what would look good
+//  float StepDelay = 5; // ms for a step delay on the lights
+//  
+//  // Make the lights breathe
+//  for (int i = 0; i < 65535; i++) {
+//    // Intensity will go from 10 - MaximumBrightness in a "breathing" manner
+//    float intensity = MaximumBrightness /2.0 * (1.0 + sin(SpeedFactor * i));
+//    strip.setBrightness(intensity);
+//    // Now set every LED to that color
+//    for (int ledNumber=0; ledNumber<TOTAL_LEDS; ledNumber++) {
+//      strip.setPixelColor(ledNumber, 0, 0, 255);
+//    }
+//    
+//    strip.show();
+//    //Wait a bit before continuing to breathe
+//    delay(StepDelay);
+//  }
+//}
 
 
 
@@ -262,23 +252,122 @@ void neoBreathe(){
 
 
 //COLOR & LED HELPERS
+void neoSetAll(String color_name){  
+  neoSetRange(color_name,0,strip.numPixels());
+}
+
+void neoFlashAll(String color_name, int periodOn, int periodOff){  
+  neoFlashRange(color_name, 0, strip.numPixels(), periodOn, periodOff);
+}
 
 // CLEAR
 void neoClear(){
-  clearPixels();
-}
-void clearPixels(){
-  for (int i = 0; i < strip.numPixels() + 1; i++) {
-    setPixelColor(i, color("black"));
-  }
+  neoSetAll("black");
   strip.show();
 }
+//void clearPixels(){
+//  for (int i = 0; i < strip.numPixels() + 1; i++) {
+//    setPixelColor(i, color("black"));
+//  }
+//  strip.show();
+//}
+
+//rename to neoSetCenter
+void neoCenter(String color_name){
+  strip.setPixelColor(neoAllOffset(NeoCenterLED), color(color_name));
+  strip.show();
+}
+
+
+//Range of Pixels
+// THIS FUNCTION IS THE SAME AS BELOW Ecept its an actual range, and does strip.show
+// previously neoRange
+void neoSetRange(String color_name, int start_point, int end_point){
+  int n = end_point - start_point;
+
+  if (color_name == "rainbow"){
+    // Color is determined on the fly
+    if (n > 0){
+      for (int i=start_point; i < start_point + n; i++) {
+        setPixelToRainbow(i % strip.numPixels());
+      }
+    } else {
+      for (int i=start_point; i > start_point + n; i--) {
+        setPixelToRainbow(i % strip.numPixels());
+      }    
+    }
+  } else {
+    // Color Predetermined
+    uint32_t c = color(color_name);
+    
+    if (n > 0){
+      for (int i=start_point; i < start_point + n; i++) {
+        setPixelColor(i % strip.numPixels(), c);
+      }
+    } else {
+      for (int i=start_point; i > start_point + n; i--) {
+        setPixelColor(i % strip.numPixels(), c);
+      }    
+    }
+  }
+  
+  strip.show();
+}
+
+//void neoSetRangeRainbow(int start_point, int end_point){
+//  int n = end_point - start_point;
+//  for (int i=start_point; i < (start_point + n); i++) {
+//    setPixelToRainbow(i % strip.numPixels());
+//  }
+//  strip.show();
+//}
+
+
+//
+//void flashColor(uint32_t c, int periodOn, int periodOff){   
+//   int toggleAction = toggleTimerAction(periodOn, periodOff);
+////   Serial.print("toggle action: ");
+////   Serial.println(toggleAction);
+//   if (toggleAction == 1){
+//     setAllPixelsToColor(c);
+//     strip.show();
+//     onNow = true;
+//   } else if (toggleAction == 2) {
+//     setAllPixelsToColor(color("black"));
+//     strip.show(); 
+//     onNow = false;
+//   }
+//}
+
+
+ 
+
+void neoFlashRange(String color_name, int start_point, int end_point, int periodOn, int periodOff){  
+  int toggleAction = toggleTimerAction(periodOn, periodOff);
+  
+  if (toggleAction == 1){
+    onNow = true;
+    neoSetRange(color_name, start_point, end_point);  
+  } else if (toggleAction == 2) {
+    onNow = false;
+    neoSetRange("black", start_point, end_point);
+  }
+}
+
+//void flashNearDeath(int i){
+//  setPixelColor(i, color("black")); 
+//  strip.show();
+//  delay(300);
+//  setPixelColor(i, rainbowColor(i)); 
+//  strip.show();
+//  delay(400);
+//} 
 
 
 
 // 1 Pixel
 void setPixelColor(int i, uint32_t c){
-  strip.setPixelColor(offsetOrigin(i), c); 
+  strip.setPixelColor(neoRingOffset(i), c); 
 }
 
 void setPixelToRainbow(int i){
@@ -286,81 +375,65 @@ void setPixelToRainbow(int i){
 }
 
 //N pixels
-void setNPixelsToColor(int n, uint32_t c){
-  setPixelRangeToColor(1,n,c);
-}
-
-void setNPixelsToRainbow(int n){
-  setPixelRangeToRainbow(1,n);
-}
-
-
-//void setBrightness(){
-//  strip.setBrightness(brightnessLevels[brightnessLevel]);
-//  strip.show();
+//void setNPixelsToColor(int n, uint32_t c){
+//  setPixelRangeToColor(0,n,c);
+//}
+//
+//void setNPixelsToRainbow(int n){
+//  setPixelRangeToRainbow(0,n);
 //}
 
 
-//Range of Pixels
-// THIS FUNCTION IS THE SAME AS BELOW Ecept its an actual range, and does strip.show
-void neoRange(String name, int start_point, int n){
-  uint32_t c = color(name);
-  n = n - start_point;
-  if (n > 0){
-    for (int i=start_point; i < start_point + n; i++) {
-      setPixelColor(i % strip.numPixels(), c);
-    }
-  } else {
-    for (int i=start_point; i > start_point + n; i--) {
-      setPixelColor(i % strip.numPixels(), c);
-    }    
-  }
-  strip.show();
-}
+
 
 //Range of Pixels
-void setPixelRangeToColor(int start_point, int n, uint32_t c){
-  if (n > 0){
-    for (int i=start_point; i < start_point + n; i++) {
-      setPixelColor(i % strip.numPixels(), c);
-    }
-  } else {
-    for (int i=start_point; i > start_point + n; i--) {
-      setPixelColor(i % strip.numPixels(), c);
-    }    
-  }
-  strip.show();
-}
+//void setPixelRangeToColor(int start_point, int n, uint32_t c){
+//  if (n > 0){
+//    for (int i=start_point; i < start_point + n; i++) {
+//      setPixelColor(i % strip.numPixels(), c);
+//    }
+//  } else {
+//    for (int i=start_point; i > start_point + n; i--) {
+//      setPixelColor(i % strip.numPixels(), c);
+//    }    
+//  }
+//  strip.show();
+//}
 
-void setPixelRangeToRainbow(int start_point, int n){
-  for (int i=start_point; i < (start_point + n); i++) {
-    setPixelToRainbow(i % strip.numPixels());
-  }
-}
+//void setPixelRangeToRainbow(int start_point, int n){
+//  for (int i=start_point; i < (start_point + n); i++) {
+//    setPixelToRainbow(i % strip.numPixels());
+//  }
+//}
 
 // All Pixels
-void setAllPixelsToColor(uint32_t c){
-  setNPixelsToColor(strip.numPixels(), c);
-}
+//void setAllPixelsToColor(uint32_t c){
+//  setNPixelsToColor(strip.numPixels(), c);
+//}
+//
+//void setAllPixelsToRainbow(){
+//  setNPixelsToRainbow(strip.numPixels());
+//}
 
-void setAllPixelsToRainbow(){
-  setNPixelsToRainbow(strip.numPixels());
+
+
+
+
+
+// Offset Origin
+int neoRingOffset(int o){
+  if (o == NeoCenterLED)
+    o+=1;
+  return neoAllOffset(o);
 }
 
 // Offset Origin
-int offsetOrigin(int o){
+int neoAllOffset(int o){
   int origin = strip.numPixels() - NeoPixelOffset;
-  return abs((origin + o - 1) % strip.numPixels()); // -1 to correct for CS array
+  return abs((origin + o) % strip.numPixels());
 }
 
-void flashNearDeath(int i){
-  setPixelColor(i, color("black")); 
-  strip.show();
-  delay(300);
-  setPixelColor(i, rainbowColor(i)); 
-  strip.show();
-  delay(400);
-} 
+
 
 
 
@@ -374,11 +447,6 @@ void flashNearDeath(int i){
 
 
 // COLOR
-
-int colorSetting = 1;
-int colorSettingsCount = 7;
-String colorSettings[7] = {"red","orange","yellow","green","blue","violet","white"};
-
 uint32_t color(String name){
   if (name == "red")
     strip.Color(255,0,0);
@@ -441,35 +509,7 @@ uint32_t Wheel(byte WheelPos) {
 
 
 
-// TOUCH/BUTTON FUNCTIONS
-
-boolean touched(){
-  //return (digitalRead(ButtonPIN) == HIGH);
-  return (digitalRead(ButtonInPIN) == LOW);
-}
-
-//void readTouchType(){ 
-//  touchType = captureTouch();
-//}
-
-//boolean tapped(){
-//  return singleClicked();
-//}
-
-//boolean singleClicked(){
-//  return (touchType == 1);
-//}
-
-//boolean doubleClicked(){
-//  return (touchType == 2);
-//}
-
-//boolean held(){
-//  return (touchType == 3);
-//}
-
-
-
+// BUTTON FUNCTIONS
 
 //new hardware
 boolean downButtonPressed(){
@@ -483,69 +523,6 @@ boolean modeButtonPressed(){
 boolean upButtonPressed(){
   return (digitalRead(ButtonUpPIN) == LOW);
 }
-
-
-//// 0 = no touch, 1 = single-click, 2 = double-click, 3 = hold
-//int captureTouch(){
-//
-//  if (upButtonPressed() || downButtonPressed())
-//    return 1;
-//  if (modeButtonPressed()){
-//    // if the user holds this button for 1 second it should turn off the displays
-//    //    for (int elapsed_ms = 0; modeButtonPressed(); elapsed_ms += 10){
-//    //      if (elapsed_ms > 1000)
-//    //        playToneHappy();
-//    //      delay(10);
-//    //    }
-//    return 2;
-//  } 
-//  if (beingHugged()){
-//    delay(300);
-//    // filter out nudges
-//    if (beingHugged())
-//      return 3;  
-//  }
-//    
-//    
-
-  
-  
-//  if (touched()){
-//     // Acknowledge Touch
-//     // Determine Type of Touch
-//     // Capture next 300ms of button input
-//     // read for 300 milliseconds; record in 10 ms increments
-//     for (int ms = captureWindow, i = 0; ms >= 0; ms-=10, i++){
-//       touchReading[i] = digitalRead(ButtonInPIN);
-//       Serial.print(touchReading[i]);
-//       delay(10);
-//     }
-//     Serial.println(" ");
-//  
-//    // Read the 300ms of button input
-//    for (int i = 0; i <= captureReadings; i++){ 
-//      if (touchReading[i]==1){ // It's a Click (because it was let up)
-//        // Was it pressed back down?
-//        for (; i <= captureReadings; i++){
-//          if (touchReading[i]==0){
-//            return 2; // It's a Double Click
-//          }
-//        }
-//        return 1; // It's a Single Click
-//      }
-//    }
-//    return 3; // Hold
-//  } else {
-//    return 0; // No Touch
-//  }
-  
-  
-  
-//}
-
-
-
-
 
 
 
@@ -570,11 +547,11 @@ void setTimeOfLastHugToNow(){
 }
 
 boolean timeToLoseHugPower(){
-  return (timeSinceLastHug() > hugPowerResiliance[hugPower-1]);
+  return (timeSinceLastHug() > hugPowerResiliance[hugPower]);
 }
 
 void dropHugPower(){
-  hugPower = max((hugPower-1), 1);
+  hugPower = max((hugPower-1), 0);
   //playToneSad();
   Serial.println("Dropped Hug Power");
 }
@@ -585,8 +562,7 @@ void dropHugPower(){
 // 0 = do nothing. 1 = switch on. 2 = switch off. //TODO handle periodOff
 int toggleTimerAction(int periodOn, int periodOff){
   unsigned long timeSinceToggled = millis() - timeToggled;
-//  Serial.print("timeSinceToggled: ");
-//  Serial.println(timeSinceToggled);
+  
   if (!onNow && (timeSinceToggled > periodOff)){
     timeToggled = millis();
     return 1;   
@@ -622,95 +598,48 @@ boolean hugInitiated(){
 }
 
 void measureHug(){
-  clearPixels();
-  playToneHappy();
-  playToneHappy();
-  
-  
+  playToneHappy(); playToneHappy();
+  neoSetRange("rainbow",0,hugPower);
+    
   // Measure Hug
   int numHugReadings = 0;
+  int intHugStrength;
   float hugStrengthAvg = 0;
+  int addedHugPower;
+  int top = hugPower + 1;
+  int elapsed_ms = 0;
   
   while (beingHugged()) {
-    int intHugStrength = hugStrength();
-    Serial.print("Hug Strength: ");
-    Serial.println(intHugStrength);
-    numHugReadings++;
-    hugStrengthAvg = ((hugStrengthAvg * (numHugReadings-1)) + intHugStrength) / numHugReadings;
- 
-    Serial.print("Hug Avg: ");
-    Serial.println(hugStrengthAvg);
+    //Animate Hug Measurement
+    neoFlashRange("rainbow", hugPower, top, 200, 200);
+    delay(200);
+    elapsed_ms += 200;
     
-    if (numHugReadings % 4 == 0)
+    // Every n MS, measure the intensity and add it to the averages.
+    if (elapsed_ms % 500 == 0){
       playToneHappy();
-    delay(250);
-    
-    clearPixels();
-    setPixelRangeToColor(8,max(-(numHugReadings/4),-8),color("yellow"));
-    setPixelRangeToRainbow(9,intHugStrength);
-    strip.show();
+      numHugReadings++;
+      intHugStrength = hugStrength();
+      hugStrengthAvg = ((hugStrengthAvg * 2 * (numHugReadings-1)) + intHugStrength) / numHugReadings;     
+      addedHugPower = sqrt(sqrt(hugStrengthAvg * numHugReadings));
+      top = min((hugPower + addedHugPower),hugPowerMax);
+    }
+
   }
   
-//  Serial.println("");
-//  Serial.println("RESULTS!");
-//
-//  Serial.print("Hug Time: ");
-//  Serial.println(numHugReadings * 250);  
-//
-//  Serial.print("Hug Avg: ");
-//  Serial.println(hugStrengthAvg);
-//  
-//  int powerOfHug = max(1,sqrt(hugStrengthAvg * numHugReadings));
+  // Show off the added hug for a bit longer so the hugger can see
+  for(int i=0;i<2000;i+=300){
+    neoFlashRange("rainbow", hugPower, top, 200, 200);
+    delay(200);
+  }
 
-
-  //Demonstrate Result
-  clearPixels();
-  playToneHappy(); playToneHappy();
-  theaterChase(strip.Color(127,   0,   0), 50); // Red
-  playToneHappy(); playToneHappy();
-  clearPixels();
-  
-  setPixelRangeToColor(8,max(-(numHugReadings/4),-8),color("yellow"));
-  setPixelRangeToColor(9,hugStrengthAvg,color("blue"));
-  strip.show();
-  delay(2000);
-  playToneHappy();
-  playToneHappy();
-  clearPixels(); 
-  
-  int addedHugPower = sqrt(sqrt(hugStrengthAvg * numHugReadings));
-  
-  
-  setPixelRangeToRainbow(0,addedHugPower);
-  strip.show();
-  delay(5000);
-  playToneHappy();
-  playToneHappy();
-  clearPixels();   
-  
-  hugPower = min(hugPower + addedHugPower,hugPowerMax);
- 
-//  for (int i=1; i < hugPower + 1; i++){
-//    setPixelToRainbow(p+i-1);
-//    strip.show();
-//    playToneHappy();
-//    delay(400);
-//  }
-  
+  // Log the Recored Hug
+  hugPower = min((hugPower + addedHugPower),hugPowerMax);
   totalHugs++;
   setTimeOfLastHugToNow();    
   playToneHappy();  
   playToneHappy(); 
-  delay(1000);
 }
-
-
-
-
-
-
-
-
 
 
 
@@ -718,35 +647,44 @@ void measureHug(){
 
 
 //MODES!
+int numHugSubModes = 2;
+int HugSubMode;
 
 void hugPowerMode(boolean init) {  
-  if (timeToLoseHugPower()){
-    dropHugPower();    
-    clearPixels();  
+  if (init)
+    HugSubMode = 0;
+  
+  if (upButtonPressed()){
+    HugSubMode = (numHugSubModes + HugSubMode + 1) % numHugSubModes;
+    neoClear();
+    delay(300);
+  }
+  if (downButtonPressed()){
+    HugSubMode = (numHugSubModes + HugSubMode - 1) % numHugSubModes;
+    neoClear();
+    delay(300);
   }
   
-  setPixelRangeToRainbow(1,hugPower);
-  strip.show();
-}
-//  if (toggleTimerAction(40, 40)){
-//    clearPixels();
-////    setPixelColor(0,color("white"));
-//    setPixelRangeToRainbow(p,hugPower);
-//    strip.show();
-//    p = (p+1) % strip.numPixels();
-//  }
-
-
-
-
-
-
-void totalHugsMode(boolean init) {
-  Serial.print("Total Hugs Mode: ");
-  Serial.println(totalHugs);
-//  if (held())
-//    measureHug();
+  if (HugSubMode==0){
+    neoSetRange("rainbow",0,hugPower);  
+  } else if (HugSubMode==1){
+    showTotalHugs();
+  }
   
+  if (timeToLoseHugPower()){
+    dropHugPower();
+    neoClear();  
+  }
+}
+
+
+
+
+
+
+
+
+void showTotalHugs() {
   int t = totalHugs;
   
   //Generate Roman Numerals
@@ -762,103 +700,70 @@ void totalHugsMode(boolean init) {
   // I = 1s
   int i = t;
 
-  Serial.println("asdsad");
-  Serial.println(l);
-  Serial.println(x);
-  Serial.println(v);
-  Serial.println(i);
+//  Serial.println("asdsad");
+//  Serial.println(l);
+//  Serial.println(x);
+//  Serial.println(v);
+//  Serial.println(i);
 
-  
   //Show Roman Numerals Using Colors (from Largest to Smallest)
-  int p = 1;
-  setPixelRangeToColor(p,l,color("green"));
-  setPixelRangeToColor(p+=l,x,color("yellow"));
-  setPixelRangeToColor(p+=x,v,color("orange")); // 1,1
-  setPixelRangeToColor(p+=v,i, color("red")); // 2,3
-  strip.show();
-
-  delay(200); 
+  int p = 0;
+  neoSetRange("green",p,l);
+  neoSetRange("yellow",p+=l,x);
+  neoSetRange("orange",p+=x,v);
+  neoSetRange("red",p+=v,i);
 }
 
 
 
+// BRIGHTNESS!!!
 
-
-
-
-void rainbowMode(boolean init) {
-  int numSubModes = 3;
-  int SubMode = 0;
-  
-  if (upButtonPressed()){
-    SubMode = min(numSubModes-1,(SubMode + 1));
-    delay(200);
-  }
-  if (downButtonPressed()){
-    flashSubMode = max(0,(SubMode - 1));
-    delay(200);
-  }
-  
-  if (SubMode==0){
-    setAllPixelsToRainbow();
-    strip.show();    
-  } else if (SubMode==1){
-    rainbow();
-  } else if (SubMode==2){
-    rainbowCycle();
-  }
-  //FIXME BUG ON THIS ONLY SHOWING 2 modes
-}
-
-
-void rainbowAnimatedMode(boolean init) {
-  if (init){
-    p=1;
-  }
-  int toggleAction = toggleTimerAction(40, 40);
-
-  if (toggleAction){
-    clearPixels();
-    setPixelRangeToRainbow(p,9);
-    strip.show();
-    p = p++ % strip.numPixels();
-  }
-}
+int brightnessLevels[] = {1, 10, 25, 50, 100, 255};
+int brightnessLevel = 2;
 
 void setBrightnessMode(boolean init){
   if (upButtonPressed()){
-    turnBrightnessUp();
+    brightnessLevel = min((brightnessLevel + 1), 4); // fix with sizeof
+    setBrightness();
     delay(500);
   }    
   if (downButtonPressed()){
-    turnBrightnessDown();
+    brightnessLevel = max((brightnessLevel - 1), 0); // fix with sizeof
+    setBrightness();
     delay(500);
   }  
 
-  setAllPixelsToColor(color("white"));
-  strip.show();
+  neoSetAll("white");
+  neoCenter("white");
+}
+
+void setBrightness(){
+  strip.setBrightness(brightnessLevels[brightnessLevel]);
 }
 
 void setColorMode(boolean init){
   if (upButtonPressed()){
-    colorSetting = (colorSetting + 1) % colorSettingsCount;
-    strip.show();
+    neoRingColor = (neoRingColor + 1) % colorSettingsCount;
     delay(500);
   }
   if (downButtonPressed()){
-    colorSetting = (colorSettingsCount + colorSetting - 1) % colorSettingsCount;
-    strip.show();
+    neoCenterColor = (colorSettingsCount + neoCenterColor - 1) % colorSettingsCount;
     delay(500);
   }
   
-  setAllPixelsToColor(color(colorSettings[colorSetting]));
+  neoSetAll(colorSettings[neoRingColor]);
+  neoCenter(colorSettings[neoCenterColor]);
   strip.show();
 }
 
 
 
+
+int submode = 0;
+int flashSubMode = 0;
+
 void flashMode(boolean init){
-  int numSubModes = 3;
+  int numSubModes = 5;
   
   if (upButtonPressed()){
     flashSubMode = min(numSubModes-1,(flashSubMode + 1));
@@ -868,15 +773,63 @@ void flashMode(boolean init){
     flashSubMode = max(0,(flashSubMode - 1));
     delay(200);
   }
-  
+
   if (flashSubMode==0)
-    flashColor(color("red"), 200,200);    
+    neoSetAll("rainbow");
   else if (flashSubMode==1)
-    flashColor(color("white"), 5,150);
+    neoFlashAll("rainbow",200,200);
   else if (flashSubMode==2)
-    flashColor(color("white"), 200,200);
-    
+    neoFlashAll("red", 200,200);    
+  else if (flashSubMode==3)
+    neoFlashAll("white", 200,200);
+  else if (flashSubMode==4)
+    neoFlashAll("white", 5,150);
 }
+
+//
+//int numRainbowSubModes = 3;
+//int RainbowSubMode;
+//
+//void rainbowMode(boolean init) {
+//  if (init)
+//    RainbowSubMode = 0;
+//  
+//  if (upButtonPressed()){
+//    RainbowSubMode = min(numRainbowSubModes-1,(RainbowSubMode + 1));
+//    delay(200);
+//  }
+//  if (downButtonPressed()){
+//    RainbowSubMode = max(0,(RainbowSubMode - 1));
+//    delay(200);
+//  }
+//  
+//  if (RainbowSubMode==0){
+//    setAllPixelsToRainbow();
+//    strip.show();   
+//  } else if (RainbowSubMode==1){
+//    rainbow(); 
+//  } else if (RainbowSubMode==2){
+//    rainbowCycle();
+//  }
+//  //FIXME BUG ON THIS ONLY SHOWING 2 modes
+//}
+//
+//
+//void rainbowAnimatedMode(boolean init) {
+//  if (init){
+//    p=1;
+//  }
+//  int toggleAction = toggleTimerAction(40, 40);
+//
+//  if (toggleAction){
+//    clearPixels();
+//    setPixelRangeToRainbow(p,9);
+//    strip.show();
+//    p = p++ % strip.numPixels();
+//  }
+//}
+
+
 
 
 void volumeMode(boolean init){  
@@ -892,29 +845,11 @@ void volumeMode(boolean init){
   }
   
   if (muted)
-    neoRange("white",10,12);
+    neoSetRange("white",10,12);
   else
-    neoRange("white",4,16);
+    neoSetRange("white",4,16);
  
 }
-
-
-
-void flashColor(uint32_t c, int periodOn, int periodOff){   
-   int toggleAction = toggleTimerAction(periodOn, periodOff);
-//   Serial.print("toggle action: ");
-//   Serial.println(toggleAction);
-   if (toggleAction == 1){
-     setAllPixelsToColor(c);
-     strip.show();
-     onNow = true;
-   } else if (toggleAction == 2) {
-     setAllPixelsToColor(color("black"));
-     strip.show(); 
-     onNow = false;
-   }
-}
-
 
 
 
