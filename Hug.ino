@@ -80,7 +80,7 @@ int numModes = 5;
 void (*modes[])(boolean) = {
     hugPowerMode,  
     setColorMode,
-    flashMode,
+    vizMode,
     setBrightnessMode,
     volumeMode
 };
@@ -277,31 +277,17 @@ void neoFlashCenter(String color_name){
 
 //Range of Pixels
 void neoSetRange(String color_name, int start_point, int end_point){
-  int n = end_point - start_point;
+
 
   if (color_name == "rainbow"){
-    // Color is determined on the fly
-    if (n > 0){
-      for (int i=start_point; i < start_point + n; i++) {
-        setPixelToRainbow(i % strip.numPixels());
-      }
-    } else {
-      for (int i=start_point; i > start_point + n; i--) {
-        setPixelToRainbow(i % strip.numPixels());
-      }    
+    for (int i=start_point; i != end_point; i = (i + 1) % strip.numPixels()) {
+      setPixelToRainbow(i);
     }
   } else {
-    // Color Predetermined
+    int n = end_point - start_point;
     uint32_t c = color(color_name);
-    
-    if (n > 0){
-      for (int i=start_point; i < start_point + n; i++) {
-        setPixelColor(i % strip.numPixels(), c);
-      }
-    } else {
-      for (int i=start_point; i > start_point + n; i--) {
-        setPixelColor(i % strip.numPixels(), c);
-      }    
+    for (int i=start_point; i < start_point + n; i++) {
+      setPixelColor(i % strip.numPixels(), c);
     }
   }
   
@@ -682,24 +668,48 @@ void setColorMode(boolean init){
 
 
 
-int submode = 0;
-int flashSubMode = 0;
+int vizSubMode;
+int numSubModes = 7;
+int start_point;
 
-void flashMode(boolean init){
-  int numSubModes = 7;
+void vizMode(boolean init){
+  if (init){
+    vizSubMode = 0;
+    start_point = 0;
+  }
   
   if (upButtonPressed()){
-    flashSubMode = (numSubModes + flashSubMode + 1) % numSubModes;
+    vizSubMode = (numSubModes + vizSubMode + 1) % numSubModes;
     delay(500);
   }
   if (downButtonPressed()){
-    flashSubMode =  (numSubModes + flashSubMode - 1) % numSubModes;
+    vizSubMode =  (numSubModes + vizSubMode - 1) % numSubModes;
     delay(500);
   }
 
 
-
-  if (flashSubMode==0){
+  if (vizSubMode != 6)
+    neoSetCenter("black");
+    
+  if (vizSubMode==0){
+    int toggleAction = toggleTimerAction(300, 300);
+    if (toggleAction){
+      int end_point = (start_point+9) % strip.numPixels();
+      start_point = (start_point+1) % strip.numPixels();      
+      neoClear();
+      neoSetRange("rainbow",start_point, end_point);
+    }
+  } else if (vizSubMode==1)
+    neoSetAll("rainbow");
+  else if (vizSubMode==2)
+    neoFlashAll("rainbow",200,200);
+  else if (vizSubMode==3)
+    neoFlashAll("red", 200,200);    
+  else if (vizSubMode==4)
+    neoFlashAll("white", 200,200);
+  else if (vizSubMode==5)
+    neoFlashAll("white", 5,150);
+  else if (vizSubMode==6){
     //burning man symbol
     neoClear();
     neoSetRange("brown",1,2);
@@ -707,55 +717,43 @@ void flashMode(boolean init){
     neoSetRange("brown",10,11);
     neoSetRange("brown",14,15);
     neoSetCenter("brown");
-
-  } else if (flashSubMode != 1)
-    neoSetCenter("black");
-  
-  if (flashSubMode==1)
-    neoSetAll("rainbow");
-  else if (flashSubMode==2)
-    neoFlashAll("rainbow",200,200);
-  else if (flashSubMode==3)
-    neoFlashAll("red", 200,200);    
-  else if (flashSubMode==4)
-    neoFlashAll("white", 200,200);
-  else if (flashSubMode==5)
-    neoFlashAll("white", 5,150);
-  else if (flashSubMode==6){
-    //jumping burning man symbol
-    neoClear();
-    neoSetRange("brown",1,2);
-    neoSetRange("brown",5,6);
-    neoSetRange("brown",10,11);
-    neoSetRange("brown",14,15);
-    neoSetCenter("brown");
-    
-    delay(800);
-
-    neoClear();     
-    neoSetRange("brown",0,1);
-    neoSetRange("brown",6,7);
-    neoSetRange("brown",9,10);
-    neoSetRange("brown",15,16);
-    neoSetCenter("brown");
-    
-    delay(800);
   }
 }
+
 
 //void rainbowAnimatedMode(boolean init) {
 //  if (init){
 //    p=1;
 //  }
 //  int toggleAction = toggleTimerAction(40, 40);
-//
 //  if (toggleAction){
-//    clearPixels();
-//    setPixelRangeToRainbow(p,9);
-//    strip.show();
+//    neoClear();
+//    neoSetRange("rainbow",p,9);
 //    p = p++ % strip.numPixels();
 //  }
 //}
+
+
+
+    //jumping burning man symbol
+//    neoClear();
+//    neoSetRange("brown",1,2);
+//    neoSetRange("brown",5,6);
+//    neoSetRange("brown",10,11);
+//    neoSetRange("brown",14,15);
+//    neoSetCenter("brown");
+//    
+//    delay(800);
+//
+//    neoClear();     
+//    neoSetRange("brown",0,1);
+//    neoSetRange("brown",6,7);
+//    neoSetRange("brown",9,10);
+//    neoSetRange("brown",15,16);
+//    neoSetCenter("brown");
+    
+//    delay(800);
+
 
 
 
@@ -774,15 +772,13 @@ void volumeMode(boolean init){
   
   if (muted){
     // Ears
-    neoSetRange("white",2,3);
-    neoSetRange("white",11,12);
+    neoSetRange("white",1,3);
+    neoSetRange("white",11,13);
 
     // Looks like a strike through the ears    
     neoSetCenter("red");
     neoSetRange("red",3,4);   
-    neoSetRange("red",12,13);  
-    neoSetRange("red",1,2);   
-    neoSetRange("red",10,11);     
+    neoSetRange("red",12,13);     
   }
   else {
     // Ears
