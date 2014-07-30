@@ -27,9 +27,7 @@ int neoRingLastPixel = neoRingSize - 1;
 int neoCenterPixelAddress = neoRingSize;
 
 int neoCenterColor = 1;
-int neoRingColor = 1;
-int colorSettingsCount = 7;
-String colorSettings[7] = {"red","orange","yellow","green","blue","violet","white"};
+int neoRingColor = 55; // 227, 199, 55 all look beautiful
 
 // SPEAKER SETUP
 #define toneC    1911
@@ -80,12 +78,11 @@ unsigned long timeToggled;
 boolean muted = false; // if i set this to true, the shit stops working... wtf
 
 // THE MODES AVAILABLE
-int numModes = 5;
+int numModes = 3;
 void (*modes[])(boolean) = {
-    hugPowerMode,  
-    setColorMode,
-    vizMode,
-    volumeMode // make this a long hold to the main button
+    hugMode, 
+    vizMode, 
+    setColorMode
 };
 
 
@@ -105,22 +102,23 @@ void setup() {
   
   // NEOPIXEL SETUP
   strip.begin();
-  setBrightness();
+  autoSetBrightness();
   
   // JOG DIAL SETUP
   pinMode(ButtonDownPIN,INPUT);
   pinMode(ButtonInPIN,INPUT);
   pinMode(ButtonUpPIN,INPUT);
 
-
   // SET HUG TIME NOW
   setTimeOfLastHugToNow();
-  for (int i = neoRingSize; i >= 0; i--){
+  
+  // SET UP CORRECT RESILIENCES
+  for (int i = neoRingSize; i >= 0; i--)
     if (i == neoRingSize)
       hugPowerResiliance[i] = hugPowerResilianceUnitary[i]; 
     else 
       hugPowerResiliance[i] = hugPowerResiliance[i+1] + hugPowerResilianceUnitary[i]; 
-  }
+
   
   // BEEP TO LET KNOW ITS ON
   playToneHappy(); playToneHappy();
@@ -130,29 +128,38 @@ void setup() {
 
 
 void loop(){  
-  neoClear();
   void (*mode_func)(boolean) = modes[modeNumber];
   neoClear();
   mode_func(true);
+  
   delay(300);
-   
+  
+  // Loop the Mode 
   while (true){
-    // Run the Mode
     mode_func(false);
   
-    autoSetBrightness();
-    
-    if (modeButtonPressed())
-      break;
+    // Button Detection
+    if (inButtonPressed()){
+     if (inButtonLetUpQuickly())
+       break;
+     else {
+       toggleMute();
+       while(inButtonPressed()){};
+     }
+    }
+
     if (hugInitiated()){
       modeNumber = 0;
       measureHug();
       return;
     }
-  
+    
+    autoSetBrightness();
   }
-  playToneHappy();
+  
+  // We just broke into the next mode
   modeNumber = (modeNumber + 1) % numModes;
+  playToneHappy();
 }
 
 
@@ -170,6 +177,16 @@ void loop(){
 
 
 // SOUNDS!!
+
+void toggleMute(){
+  if (muted){
+    muted = false;
+    playToneHappy(); playToneHappy();
+  } else {
+    playToneSad();
+    muted = true;
+  }
+}
 
 void playToneHappy(){
   int delaySec = 25;
@@ -286,17 +303,6 @@ uint32_t rainbowColor(int LEDnum){
   return Wheel(((LEDnum * 256 / neoRingSize) & 255));
 }
 
-uint32_t healthColor(int i) {
-  if(i < 4) {
-   return strip.Color(255,0,0);
-  } else if(i < 7) {
-   return strip.Color(255,165,0);
-  } else {
-   return strip.Color(0,255,0);
-  }
-}
-
-
 // Input a value 0 to 255 to get a color value.
 // The colours are a transition r - g - b - back to r.
 uint32_t Wheel(byte WheelPos) {
@@ -312,9 +318,16 @@ uint32_t Wheel(byte WheelPos) {
 }
 
 
+//uint32_t healthColor(int i) {
+//  if(i < 4) {
+//   return strip.Color(255,0,0);
+//  } else if(i < 7) {
+//   return strip.Color(255,165,0);
+//  } else {
+//   return strip.Color(0,255,0);
+//  }
+//}
 
-
-  
  
 
 
@@ -324,20 +337,30 @@ uint32_t Wheel(byte WheelPos) {
 
 
 // BUTTON FUNCTIONS
-
-//new hardware
 boolean downButtonPressed(){
   return (digitalRead(ButtonDownPIN) == LOW);
-}
-
-boolean modeButtonPressed(){
-  return (digitalRead(ButtonInPIN) == LOW);
 }
 
 boolean upButtonPressed(){
   return (digitalRead(ButtonUpPIN) == LOW);
 }
 
+
+boolean inButtonPressed(){
+  return (digitalRead(ButtonInPIN) == LOW);
+}
+
+boolean inButtonLetUpQuickly(){
+  int msHeld;
+  
+  for(msHeld = 0; (inButtonPressed() && (msHeld < 1000)); msHeld += 10)
+    delay(10);
+  
+  if (msHeld < 1000)
+    return true;
+  else
+    return false;
+}
 
 
 
@@ -366,8 +389,6 @@ boolean timeToLoseHugPower(){
 
 void dropHugPower(){
   hugPower = max((hugPower-1), 0);
-  //playToneSad();
-  Serial.println("Dropped Hug Power");
 }
 
 
@@ -385,6 +406,10 @@ int toggleTimerAction(int periodOn, int periodOff){
     return 2;   
   } else
     return 0;
+}
+
+int toggleTimerAction(int periodOn){
+  return toggleTimerAction(periodOn, 0);
 }
  
  
@@ -413,6 +438,7 @@ boolean hugInitiated(){
 
 void measureHug(){
   playToneHappy(); playToneHappy();
+  neoClear();
   neoSetRange("rainbow",0,hugPower);
     
   // Measure Hug
@@ -452,8 +478,7 @@ void measureHug(){
   hugPower = min((hugPower + addedHugPower),hugPowerMax);
   totalHugs++;
   setTimeOfLastHugToNow();    
-  playToneHappy();  
-  playToneHappy(); 
+  playToneHappy(); playToneHappy(); 
 }
 
 
@@ -462,46 +487,22 @@ void measureHug(){
 
 
 //MODES!
-int numHugSubModes = 2;
-int HugSubMode;
-
-void hugPowerMode(boolean init) {  
-  if (init){
-    HugSubMode = 0;
-    neoSetCenter("red");
-  }
+void hugMode(boolean init) {  
   
-  if (upButtonPressed()){
-    HugSubMode = (numHugSubModes + HugSubMode + 1) % numHugSubModes;
-    neoClear();
-    delay(300);
-  }
-  if (downButtonPressed()){
-    HugSubMode = (numHugSubModes + HugSubMode - 1) % numHugSubModes;
-    neoClear();
-    delay(300);
-  }
-  
-
-  
-  if (HugSubMode==0){
-    neoSetRange("rainbow",0,hugPower);  
-  } else if (HugSubMode==1){
+  while (upButtonPressed() || downButtonPressed()){
     showTotalHugs();
+    delay(300);
+    neoClear();
   }
-  
+
   if (timeToLoseHugPower()){
     dropHugPower();
     neoClear();  
   }
+
+  // Show Hug Power
+  neoSetRange("rainbow",0,hugPower);  
 }
-
-
-
-
-
-
-
 
 void showTotalHugs() {
   int t = totalHugs;
@@ -519,12 +520,6 @@ void showTotalHugs() {
   // I = 1s
   int i = t;
 
-//  Serial.println("asdsad");
-//  Serial.println(l);
-//  Serial.println(x);
-//  Serial.println(v);
-//  Serial.println(i);
-
   //Show Roman Numerals Using Colors (from Largest to Smallest)
   int p = 0;
   neoSetRange("green",p,l);
@@ -536,9 +531,9 @@ void showTotalHugs() {
 
 
 // BRIGHTNESS!!!
-int autoBrightnessLevels[] = {1,10,10,12,17,25,25,25,40,50,150,255,255,255,255,255,255,255,255};
-int brightnessLevels[] = {1, 10, 25, 50, 100, 255};
-int brightnessLevel = 2;
+int autoBrightnessLevels[] = {5,10,10,12,17,25,25,30,40,50,150,255,255,255,255,255,255,255,255};
+//int brightnessLevels[] = {1, 10, 25, 50, 100, 255};
+//int brightnessLevel = 2;
 
 void autoSetBrightness(){
    int ambientLight = analogRead(PhotoPIN);
@@ -555,163 +550,136 @@ void autoSetBrightness(){
 //   delay(500);
 }
 
-void setBrightnessMode(boolean init){
+
+
+void setColorMode(boolean init){ 
   if (upButtonPressed()){
-    brightnessLevel = min((brightnessLevel + 1), 4); // fix with sizeof
-    setBrightness();
-    delay(500);
-  }    
-  if (downButtonPressed()){
-    brightnessLevel = max((brightnessLevel - 1), 0); // fix with sizeof
-    setBrightness();
-    delay(500);
-  }  
-
-  neoSetCenter("white");
-  neoSetRange("white", 1,7);
-  neoSetRange("white", 8,15);
-}
-
-void setBrightness(){
-  strip.setBrightness(brightnessLevels[brightnessLevel]);
-}
-
-void setColorMode(boolean init){
-  if (upButtonPressed()){
-    neoRingColor = (neoRingColor + 1) % colorSettingsCount;
-    delay(500);
+    neoRingColor = (255 + neoRingColor + 1) % 255;
+    delay(10);
   }
   if (downButtonPressed()){
-    neoCenterColor = (colorSettingsCount + neoCenterColor - 1) % colorSettingsCount;
-    delay(500);
+    neoRingColor = (255 + neoRingColor - 1) % 255;
+    delay(10);
   }
-  
-  neoSetAll(colorSettings[neoRingColor]);
-  neoSetCenter(colorSettings[neoCenterColor]);
+ 
+  neoSetAll(Wheel(neoRingColor));
 }
 
+unsigned long idleTimer;
+unsigned long lastInteractionAt;
 
-
-
-int vizSubMode;
-int numSubModes = 7;
-int start_point;
-
-void vizMode(boolean init){
-  if (init){
-    vizSubMode = 0;
-    start_point = 0;
-  }
-  
-  if (upButtonPressed()){
-    vizSubMode = (numSubModes + vizSubMode + 1) % numSubModes;
-    delay(500);
-  }
-  if (downButtonPressed()){
-    vizSubMode =  (numSubModes + vizSubMode - 1) % numSubModes;
-    delay(500);
-  }
-
-
-  if (vizSubMode != 6)
-    neoSetCenter("black");
-    
-  if (vizSubMode==0){
-    int toggleAction = toggleTimerAction(300, 300);
-    if (toggleAction){
-      int end_point = start_point+9;
-      start_point++; 
-      neoClear();
-      neoSetRange("rainbow",start_point, end_point);
-    }
-  } else if (vizSubMode==1)
-    neoSetAll("rainbow");
-  else if (vizSubMode==2)
-    neoFlashAll("rainbow",200,200);
-  else if (vizSubMode==3)
-    neoFlashAll("red", 200,200);    
-  else if (vizSubMode==4)
-    neoFlashAll("white", 200,200);
-  else if (vizSubMode==5)
-    neoFlashAll("white", 5,150);
-  else if (vizSubMode==6){
-    //burning man symbol
-    neoClear();
-    neoSetRange("brown",1,2);
-    neoSetRange("brown",5,6);
-    neoSetRange("brown",10,11);
-    neoSetRange("brown",14,15);
-    neoSetCenter("brown");
-  }
+void resetIdleTimer(){
+  lastInteractionAt = now();
 }
 
+boolean idleFor(int time){
+  return (now() >= (lastInteractionAt + time));
+}
 
-//void rainbowAnimatedMode(boolean init) {
-//  if (init){
-//    p=1;
-//  }
-//  int toggleAction = toggleTimerAction(40, 40);
-//  if (toggleAction){
-//    neoClear();
-//    neoSetRange("rainbow",p,9);
-//    p = p++ % neoRingSize;
+//int cbIncrementer = 1;
+//int colorBreatheColor = 0;
+//
+//void colorBreathe(int color){
+//  int low = (color - 10) % 256;
+//  int high = (color + 10) % 256;
+//    
+//  if (toggleTimerAction(25,25)){
+//    if (colorBreatheColor < low || colorBreatheColor > high)
+//      colorBreatheColor = low;
+//    else if (colorBreatheColor == high) //127
+//      cbIncrementer = -1;
+//    else if (colorBreatheColor == low)
+//      cbIncrementer = 1;
+//    
+//    Serial.println(colorBreatheColor);
+//    colorBreatheColor = colorBreatheColor + cbIncrementer;
+//    neoSetAll(Wheel(colorBreatheColor));
 //  }
 //}
 
 
+int vizSubMode = 0;
+int numSubModes = 7;
+int vizColor = 0;
 
-    //jumping burning man symbol
-//    neoClear();
-//    neoSetRange("brown",1,2);
-//    neoSetRange("brown",5,6);
-//    neoSetRange("brown",10,11);
-//    neoSetRange("brown",14,15);
-//    neoSetCenter("brown");
-//    
-//    delay(800);
-//
-//    neoClear();     
-//    neoSetRange("brown",0,1);
-//    neoSetRange("brown",6,7);
-//    neoSetRange("brown",9,10);
-//    neoSetRange("brown",15,16);
-//    neoSetCenter("brown");
-    
-//    delay(800);
-
-
-
-
-
-void volumeMode(boolean init){  
+void vizMode(boolean init){  
+  
   if (upButtonPressed()){
-    playToneHappy();
-    muted = false;
-    neoClear();
+    vizSubMode = (numSubModes + vizSubMode + 1) % numSubModes;
+    vizColor = 0;
+    delay(500);
   }
   if (downButtonPressed()){
-    playToneSad();
-    muted = true;
-    neoClear();
+    vizSubMode = (numSubModes + vizSubMode - 1) % numSubModes;
+    vizColor = 0;
+    delay(500);
   }
-  
-  if (muted){
-    // Ears
-    neoSetRange("white",1,3);
-    neoSetRange("white",10,12);
 
-    // Looks like a strike through the ears    
-    neoSetCenter("red");
-    neoSetRange("red",4,4);   
-    neoSetRange("red",13,13);     
+  switch(vizSubMode){
+    case 5: // rainbow snake
+      vizRainbowSnake();
+      break;
+    case 1: // strobe light
+      neoFlashAll("white", 5,150);
+      break;
+    case 2: // bicycle safety
+      neoFlashAll("white", 200,200);
+      break;
+    case 3: // plain rainbow
+      neoSetAll("rainbow");
+      break;
+    case 4: // flashing rainbow
+      neoFlashAll("rainbow",200,200);
+      break;
+    case 6:
+      vizColorCycle();
+      break;
+    case 0:
+      vizCoolColorCycle();
+      break;
+    // add: color cycling modes
+    // add: default color modes
+    // add: cool color mode
+    // add: breathing modes
   }
-  else {
-    // Ears
-    neoSetCenter("black");
-    neoSetRange("white",1,4);
-    neoSetRange("white",10,13);
+}
+
+
+int start_point = 0;
+
+void vizRainbowSnake(){
+  int toggleAction = toggleTimerAction(300, 300);
+  if (toggleAction){
+    int end_point = start_point+9;
+    start_point++; 
+    neoClear();
+    neoSetRange("rainbow",start_point, end_point);
+  } 
+}
+
+
+
+void vizColorCycle(){
+  if (toggleTimerAction(20,20)){
+    vizColor = (vizColor + 1) % 255;
+    neoSetAll(Wheel(vizColor));
+//    Serial.println(vizColor);
+//    delay(10);
   }
- 
+}
+
+int incrementer = 1; // makes vizColor ping/pong vs. loop
+
+void vizCoolColorCycle(){
+  if (toggleTimerAction(25,25)){
+    if (vizColor == 45) //127
+      incrementer = -1;
+    else if (vizColor == 10)
+      incrementer = 1;
+      
+    vizColor = vizColor + incrementer;
+    neoSetAll(Wheel(vizColor + 178));
+  }
 }
 
 
@@ -811,6 +779,18 @@ void theaterChaseRainbow(uint8_t wait) {
   }
 }
 
+//void rainbowAnimatedMode(boolean init) {
+//  if (init){
+//    p=1;
+//  }
+//  int toggleAction = toggleTimerAction(40, 40);
+//  if (toggleAction){
+//    neoClear();
+//    neoSetRange("rainbow",p,9);
+//    p = p++ % neoRingSize;
+//  }
+//}
+
 
 
 
@@ -828,10 +808,15 @@ void theaterChaseRainbow(uint8_t wait) {
 //COLOR & LED HELPERS
 void neoClear(){
   neoSetAll("black");
+  neoSetCenter("black");
 }
 
 void neoSetAll(String color_name){
   neoSetRange(color_name,0,neoRingLastPixel);
+}
+
+void neoSetAll(uint32_t color){
+  neoSetRange(color,0,neoRingLastPixel);
 }
 
 void neoSetCenter(String color_name){
@@ -850,18 +835,16 @@ void neoFlashCenter(String color_name){
 
 //Range of Pixels
 void neoSetRange(String color_name, int start_point, int end_point){
-
   if (color_name == "rainbow"){
-    for (int i=start_point; i <= end_point; i++) {
-      setPixelToRainbow(i);
-    }
-  } else {
-    uint32_t c = color(color_name);
-    for (int i=start_point; i <= end_point; i++) {
-      setPixelColor(i, c);   
-    }
-  }
-  
+    for (int i=start_point; i <= end_point; i++)
+      setPixelToRainbow(i); strip.show();
+  } else
+    neoSetRange(color(color_name), start_point, end_point);
+}
+
+void neoSetRange(uint32_t color, int start_point, int end_point){
+  for (int i=start_point; i <= end_point; i++)
+    setPixelColor(i, color);   
   strip.show();
 }
 
@@ -892,3 +875,71 @@ void setPixelToRainbow(int i){
 int neoRingPixelAddress(int pixelNum){  
   return (neoRingOrigin + pixelNum) % neoRingSize;
 }
+
+
+
+
+
+
+
+
+
+//// DEPRECATED CODE
+
+//int colorSettingsCount = 7;
+//String colorSettings[7] = {"red","orange","yellow","green","blue","violet","white"};
+
+
+//void setBrightnessMode(boolean init){
+//  if (upButtonPressed()){
+//    brightnessLevel = min((brightnessLevel + 1), 4); // fix with sizeof
+//    setBrightness();
+//    delay(500);
+//  }    
+//  if (downButtonPressed()){
+//    brightnessLevel = max((brightnessLevel - 1), 0); // fix with sizeof
+//    setBrightness();
+//    delay(500);
+//  }  
+//
+//  neoSetCenter("white");
+//  neoSetRange("white", 1,7);
+//  neoSetRange("white", 8,15);
+//}
+//
+//void setBrightness(){
+//  strip.setBrightness(brightnessLevels[brightnessLevel]);
+//}
+
+
+
+//void volumeMode(boolean init){  
+//  if (upButtonPressed()){
+//    playToneHappy();
+//    muted = false;
+//    neoClear();
+//  }
+//  if (downButtonPressed()){
+//    playToneSad();
+//    muted = true;
+//    neoClear();
+//  }
+//  
+//  if (muted){
+//    // Ears
+//    neoSetRange("white",1,3);
+//    neoSetRange("white",10,12);
+//
+//    // Looks like a strike through the ears    
+//    neoSetCenter("red");
+//    neoSetRange("red",4,4);   
+//    neoSetRange("red",13,13);     
+//  }
+//  else {
+//    // Ears
+//    neoSetCenter("black");
+//    neoSetRange("white",1,4);
+//    neoSetRange("white",10,13);
+//  }
+// 
+//}
