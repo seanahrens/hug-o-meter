@@ -454,18 +454,20 @@ boolean hugInitiated(){
 }
 
 void measureHug(){
+  // Set up Display for reading
   playToneHappy(); playToneHappy();
   neoClear();
   neoSetRange("rainbow",0,hugPower);
     
-  // Measure Hug
+  // Hug Measurement Variables
   int numHugReadings = 0;
   int intHugStrength;
   float hugStrengthAvg = 0;
   int addedHugPower;
   int top = hugPower + 1;
   int elapsed_ms = 0;
-  
+
+  // Measure Hug  
   while (beingHugged()) {
 
     // Read Force
@@ -484,7 +486,12 @@ void measureHug(){
     elapsed_ms += 200;
   }
   
+  // Hug is COMPLETE. Perform, after hug activities:
 
+  // Adjust to the light after hug //this is hacky.
+  for(int i=0;i<10;i++)
+    autoSetBrightness();
+    
   // Show off the added hug for a bit longer so the hugger can see  
   for(int i=0;i<3000;i+=500){
     if (top == hugPowerMax)
