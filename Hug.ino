@@ -490,6 +490,7 @@ void measureHug(){
 void hugMode(boolean init) {  
   
   while (upButtonPressed() || downButtonPressed()){
+    neoClear();
     showTotalHugs();
     delay(300);
     neoClear();
@@ -504,28 +505,19 @@ void hugMode(boolean init) {
   neoSetRange("rainbow",0,hugPower);  
 }
 
-void showTotalHugs() {
-  int t = totalHugs;
-  
-  //Generate Roman Numerals
-  // L = 50s
-  int l = t / 50; 
-  t = t - l*50;
-  // X = 10s
-  int x = t / 10;
-  t = t - x*10;
-  // V = 5s
-  int v = t / 5;
-  t = t - v*5;
-  // I = 1s
-  int i = t;
 
-  //Show Roman Numerals Using Colors (from Largest to Smallest)
-  int p = 0;
-  neoSetRange("green",p,l);
-  neoSetRange("yellow",p+=l,x);
-  neoSetRange("orange",p+=x,v);
-  neoSetRange("red",p+=v,i);
+// breaks if totalHugs > 16 *16
+void showTotalHugs() {
+  int numberingSystem = 10;
+  
+  if (totalHugs <= numberingSystem)
+    neoSetRange(199,0,totalHugs-1);
+  else {
+    int numFullFills = totalHugs / numberingSystem;
+    int remainingSingleHugs = totalHugs - (numFullFills * numberingSystem);
+    neoSetRange("red",0,numFullFills-1);
+    neoSetRange(199,numFullFills,numFullFills+remainingSingleHugs-1);
+  }
 }
 
 
