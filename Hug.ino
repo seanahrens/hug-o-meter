@@ -61,7 +61,7 @@ int neoRingColor = 55; // 227, 199, 55 all look beautiful
 // GLOBAL VARIABLES
 
 // GLOBAL HUG VARIABLES
-int hugPower = 8; //starting level
+int hugPower = 10; //starting level
 int hugPowerMax = 15; // //LEDs labelled 0-15 one of these is the center pixel
 int totalHugs = 0;
 unsigned long timeOfLastHug;
@@ -75,7 +75,9 @@ void breakOnTap(void (*mode_func)(boolean init));
 boolean onNow = false;
 int modeNumber = 0;
 unsigned long timeToggled;
+
 boolean muted = false; // if i set this to true, the shit stops working... wtf
+boolean sleepDisplay = false;
 
 // THE MODES AVAILABLE
 int numModes = 3;
@@ -128,44 +130,73 @@ void setup() {
 
 
 void loop(){  
-  void (*mode_func)(boolean) = modes[modeNumber];
+  // Clear Display, and Make Sure it's On
+  sleepDisplay = false;
   neoClear();
+  
+  // Grab the correct mode from the mode array
+  void (*mode_func)(boolean) = modes[modeNumber];
+  // Run it once to initialize
   mode_func(true);
   
-  delay(300);
-  
   // Loop the Mode 
-  while (true){
-    mode_func(false);
-  
-    // Button Detection
+  while (true){  
+    autoSetBrightness();
+    
+    // Detect Button Input
     if (inButtonPressed()){
-     if (inButtonLetUpQuickly())
-       break;
-     else {
-       toggleMute();
-       while(inButtonPressed()){};
-     }
+      if (inButtonLetUpQuickly())
+        break; // Switch Modes
+      else {
+        // Mute or Sleep 
+        playMuteNotif();
+        
+        if (inButtonLetUpQuickly())
+          toggleMute();
+        else {
+          // Sleep
+          sleepDisplay = true;
+          neoClear();
+          while (inButtonPressed()){} //Hold here until they let go
+        }
+      }
     }
-
     if (hugInitiated()){
       modeNumber = 0;
       measureHug();
       return;
     }
     
-    autoSetBrightness();
+    if (sleepDisplay)
+      neoClear();
+    else
+      mode_func(false);
   }
   
   // We just broke into the next mode
   modeNumber = (modeNumber + 1) % numModes;
+  neoSetAll("black");
   playToneHappy();
+  delay(200);
 }
 
 
 
 
 
+
+
+
+// BRIGHTNESS!!!
+int autoBrightnessLevels[] = {5,8,10,12,17,25,25,30,50,100,150,255,255,255,255,255,255,255,255};
+float averageAmbientLevel = 0; // this will be the moving average of readings to prevent flicker
+
+void autoSetBrightness(){
+   int ambientLevelNow = analogRead(PhotoPIN) / 90;
+   // Update Moving Average of 10 Readings:
+   averageAmbientLevel = ((9 * averageAmbientLevel) + ambientLevelNow) / 10;
+   strip.setBrightness(autoBrightnessLevels[(int) averageAmbientLevel]);
+}
 
 
 
@@ -179,51 +210,37 @@ void loop(){
 // SOUNDS!!
 
 void toggleMute(){
-  if (muted){
-    muted = false;
-    playToneHappy(); playToneHappy();
-  } else {
-    playToneSad();
-    muted = true;
-  }
+  muted = !muted;
 }
 
+int happyTones[] = {tonec, toneG, toneE, toneA};
+int sadTones[] = {toneA, toneE, toneG, tonec};
+
+int toneSoundToggle[] = {toneG, tonec, toneG, toneG, tonec, toneG};
+
 void playToneHappy(){
-  int delaySec = 25;
-  
-  if (muted){
-    delay(delaySec * 4);
-    return;
-  }
-  tone(BuzzerPIN, tonec);
-  delay(delaySec);
-  tone(BuzzerPIN, toneG);
-  delay(delaySec);
-  tone(BuzzerPIN, toneE);
-  delay(delaySec);
-  tone(BuzzerPIN, toneA);
-  delay(delaySec);
-  noTone(BuzzerPIN);
+  play(happyTones,4,25,false);
 }
 
 void playToneSad(){
-  int delaySec = 50;
-  
-  if (muted){
-    delay(delaySec * 4);
-    return;
-  }
-
-  tone(BuzzerPIN, toneA);
-  delay(delaySec);
-  tone(BuzzerPIN, toneE);
-  delay(delaySec);
-  tone(BuzzerPIN, toneG);
-  delay(delaySec);
-  tone(BuzzerPIN, tonec);
-  delay(delaySec);
-  noTone(BuzzerPIN);
+  play(sadTones,4,50,false);
 }
+
+void playMuteNotif(){
+  play(toneSoundToggle,6,50,true); 
+}
+
+void play(int tones[], int numTones, int tempo, boolean ignoreMuted){
+  // sizeofTones http://stackoverflow.com/questions/37538/how-do-i-determine-the-size-of-my-array-in-c
+  for (int i = 0; i < numTones; i++){
+    if (!muted || ignoreMuted)
+      tone(BuzzerPIN, tones[i]);
+    delay(tempo);
+  }
+  noTone(BuzzerPIN);  
+}
+
+
 
 
 
@@ -370,10 +387,10 @@ boolean inButtonLetUpQuickly(){
 
 // HUG MEASURMENT!!!!
 
-void initHugPower(int power){
-  setTimeOfLastHugToNow();
-  hugPower = power;
-}
+//void initHugPower(int power){
+//  setTimeOfLastHugToNow();
+//  hugPower = power;
+//}
 
 int timeSinceLastHug(){
   return (now() - timeOfLastHug);
@@ -455,7 +472,7 @@ void measureHug(){
     numHugReadings++;
     intHugStrength = hugStrength();
     hugStrengthAvg = ((hugStrengthAvg * (numHugReadings-1)) + intHugStrength) / numHugReadings;     
-    addedHugPower = sqrt((hugStrengthAvg * numHugReadings) / 2);
+    addedHugPower = sqrt((hugStrengthAvg * numHugReadings) / 3);
     top = min((hugPower + addedHugPower),hugPowerMax);
 
     if ((numHugReadings % 5) == 0)
@@ -469,17 +486,25 @@ void measureHug(){
   
 
   // Show off the added hug for a bit longer so the hugger can see  
-  for(int i=0;i<4000;i+=300){
-    neoFlashRange("rainbow", hugPower, top, 200, 200);
-    delay(200);
+  for(int i=0;i<3000;i+=500){
+    if (top == hugPowerMax)
+      neoFlashRange("rainbow", 0, top, 200, 200);
+    else
+      neoFlashRange("rainbow", hugPower, top, 200, 200);
+    playToneHappy();
+    delay(500);
   }
 
   // Log the Recored Hug
   hugPower = min((hugPower + addedHugPower),hugPowerMax);
   totalHugs++;
   setTimeOfLastHugToNow();    
-  playToneHappy(); playToneHappy(); 
 }
+
+
+
+
+
 
 
 
@@ -498,12 +523,32 @@ void hugMode(boolean init) {
 
   if (timeToLoseHugPower()){
     dropHugPower();
-    neoClear();  
   }
 
   // Show Hug Power
-  neoSetRange("rainbow",0,hugPower);  
+  //neoSetRange("rainbow",0,hugPower); 
+  vizRainbowSnake();
 }
+
+
+int start_point = 0;
+
+void vizRainbowSnake(){
+  int toggleAction = toggleTimerAction(300, 300);
+  if (toggleAction){
+    int end_point = start_point+hugPower;
+    start_point++; 
+    neoClear();
+    neoSetRange("rainbow",start_point, end_point);
+  } 
+}
+//
+//void resetSnake(){
+////  neoSetAll("white");
+////  delay(50);
+//  neoClear();
+////  start_point = 0;  
+//}
 
 
 // breaks if totalHugs > 16 *16
@@ -522,24 +567,63 @@ void showTotalHugs() {
 
 
 
-// BRIGHTNESS!!!
-int autoBrightnessLevels[] = {5,10,10,12,17,25,25,30,40,50,150,255,255,255,255,255,255,255,255};
-//int brightnessLevels[] = {1, 10, 25, 50, 100, 255};
-//int brightnessLevel = 2;
 
-void autoSetBrightness(){
-   int ambientLight = analogRead(PhotoPIN);
-   int ambientLevel = ambientLight / 90;
-   strip.setBrightness(autoBrightnessLevels[ambientLevel]);
-//   Serial.print("Ambient Light: ");
-//   Serial.println(ambientLevel);
-//
-//   Serial.print("Brightness Level: ");
-//   Serial.println(brightnessLevels[brightnessLevel]);
-//   Serial.println("");   
-//   Serial.print("Auto Brightness Level: ");
-//   Serial.println(autoBrightnessLevels[ambientLevel]);
-//   delay(500);
+
+
+
+
+int vizSubMode = 0;
+int numSubModes = 6;
+int vizColor = 0;
+
+void vizMode(boolean init){  
+  if (upButtonPressed()){
+    vizSubMode = (numSubModes + vizSubMode + 1) % numSubModes;
+    vizColor = 0;
+    neoClear();
+    while (upButtonPressed())
+      delay(100);
+  }
+  if (downButtonPressed()){
+    vizSubMode = (numSubModes + vizSubMode - 1) % numSubModes;
+    vizColor = 0;
+    neoClear();
+    while (downButtonPressed())
+      delay(100);
+  }
+
+  switch(vizSubMode){
+    case 0:
+      vizCoolColorCycle();
+      break;
+    case 1: // strobe light
+      neoFlashAll("white", 5,150);
+      break;
+    case 2: // bicycle safety
+      neoFlashAll("white", 200,200);
+      break;
+    case 3: // plain rainbow
+      neoSetAll("rainbow");
+      break;
+    case 4: // flashing rainbow
+      neoFlashAll("rainbow",200,200);
+      break;
+    case 5:
+      vizColorCycle();
+      break;
+
+    // add: color cycling modes
+    // add: default color modes
+    // add: cool color mode
+    // add: breathing modes
+  }
+}
+
+
+void vizChange(){
+ neoClear();
+// playToneSad();
+ delay(200);
 }
 
 
@@ -590,64 +674,8 @@ boolean idleFor(int time){
 //}
 
 
-int vizSubMode = 0;
-int numSubModes = 7;
-int vizColor = 0;
-
-void vizMode(boolean init){  
-  
-  if (upButtonPressed()){
-    vizSubMode = (numSubModes + vizSubMode + 1) % numSubModes;
-    vizColor = 0;
-    delay(500);
-  }
-  if (downButtonPressed()){
-    vizSubMode = (numSubModes + vizSubMode - 1) % numSubModes;
-    vizColor = 0;
-    delay(500);
-  }
-
-  switch(vizSubMode){
-    case 5: // rainbow snake
-      vizRainbowSnake();
-      break;
-    case 1: // strobe light
-      neoFlashAll("white", 5,150);
-      break;
-    case 2: // bicycle safety
-      neoFlashAll("white", 200,200);
-      break;
-    case 3: // plain rainbow
-      neoSetAll("rainbow");
-      break;
-    case 4: // flashing rainbow
-      neoFlashAll("rainbow",200,200);
-      break;
-    case 6:
-      vizColorCycle();
-      break;
-    case 0:
-      vizCoolColorCycle();
-      break;
-    // add: color cycling modes
-    // add: default color modes
-    // add: cool color mode
-    // add: breathing modes
-  }
-}
 
 
-int start_point = 0;
-
-void vizRainbowSnake(){
-  int toggleAction = toggleTimerAction(300, 300);
-  if (toggleAction){
-    int end_point = start_point+9;
-    start_point++; 
-    neoClear();
-    neoSetRange("rainbow",start_point, end_point);
-  } 
-}
 
 
 
