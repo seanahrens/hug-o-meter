@@ -6,7 +6,8 @@
 
 // NEOPIXEL RING
 #define NeoPixelPIN 9
-
+// PHOTORESISTOR PIN
+#define PhotoPIN A4
 // SPEAKER
 #define BuzzerPIN A3
 // FORCE SENSOR
@@ -18,9 +19,13 @@
 
 // Set up
 // NEOPIXEL SETUP
-#define NeoPixelOffset 7
-#define NeoCenterLED 6
+#define neoRingOrigin 9
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(17, NeoPixelPIN, NEO_GRB + NEO_KHZ800);
+
+int neoRingSize = 16;
+int neoRingLastPixel = neoRingSize - 1;
+int neoCenterPixelAddress = neoRingSize;
+
 int neoCenterColor = 1;
 int neoRingColor = 1;
 int colorSettingsCount = 7;
@@ -59,13 +64,12 @@ String colorSettings[7] = {"red","orange","yellow","green","blue","violet","whit
 
 // GLOBAL HUG VARIABLES
 int hugPower = 8; //starting level
-int hugPowerMax = 17; //0-15 (16 options) one of these is the center pixel
+int hugPowerMax = 15; // //LEDs labelled 0-15 one of these is the center pixel
 int totalHugs = 0;
 unsigned long timeOfLastHug;
 int p;
-int hugPowerResilianceUnitary[18] =  { 3600,3600,  3600,3600,1800,1800,  600,600,300,300,  60,60,60,30,  16, 8, 4, 2 };
-//int hugPowerResiliance[18] =  { 140,130,  112,104,96,88,  80,72,64,56,  48,40,32,24,  16, 8, 4, 2 };
-int hugPowerResiliance[18];            
+int hugPowerResilianceUnitary[16] =  { 3600,3600,1800,1800,  600,600,300,300,  60,60,60,30,  16, 8, 4, 2 };
+int hugPowerResiliance[16];            
                            
 
 // GLOBAL MODE-SELECTION VARIABLES
@@ -73,7 +77,7 @@ void breakOnTap(void (*mode_func)(boolean init));
 boolean onNow = false;
 int modeNumber = 0;
 unsigned long timeToggled;
-boolean muted = true;
+boolean muted = false; // if i set this to true, the shit stops working... wtf
 
 // THE MODES AVAILABLE
 int numModes = 5;
@@ -81,13 +85,8 @@ void (*modes[])(boolean) = {
     hugPowerMode,  
     setColorMode,
     vizMode,
-    setBrightnessMode,
-    volumeMode
+    volumeMode // make this a long hold to the main button
 };
-
-
-
-
 
 
 
@@ -116,8 +115,8 @@ void setup() {
 
   // SET HUG TIME NOW
   setTimeOfLastHugToNow();
-  for (int i = 17; i >= 0; i--){
-    if (i == 17)
+  for (int i = neoRingSize; i >= 0; i--){
+    if (i == neoRingSize)
       hugPowerResiliance[i] = hugPowerResilianceUnitary[i]; 
     else 
       hugPowerResiliance[i] = hugPowerResiliance[i+1] + hugPowerResilianceUnitary[i]; 
@@ -131,26 +130,29 @@ void setup() {
 
 
 void loop(){  
- void (*mode_func)(boolean) = modes[modeNumber];
- neoClear();
- mode_func(true);
- delay(300);
- 
- while (true){
-   // Run the Mode
-   mode_func(false);
-
-   if (modeButtonPressed())
-     break;
-   if (hugInitiated()){
-     modeNumber = 0;
-     measureHug();
-     return;
-   }
-
- }
- playToneHappy();
- modeNumber = (modeNumber + 1) % numModes;
+  neoClear();
+  void (*mode_func)(boolean) = modes[modeNumber];
+  neoClear();
+  mode_func(true);
+  delay(300);
+   
+  while (true){
+    // Run the Mode
+    mode_func(false);
+  
+    autoSetBrightness();
+    
+    if (modeButtonPressed())
+      break;
+    if (hugInitiated()){
+      modeNumber = 0;
+      measureHug();
+      return;
+    }
+  
+  }
+  playToneHappy();
+  modeNumber = (modeNumber + 1) % numModes;
 }
 
 
@@ -251,97 +253,6 @@ void playToneSad(){
 
 
 
-//COLOR & LED HELPERS
-void neoClear(){
-  neoSetAll("black");
-}
-
-void neoSetAll(String color_name){  
-  neoSetRange(color_name,0,strip.numPixels());
-}
-
-void neoSetCenter(String color_name){
-  strip.setPixelColor(neoAllOffset(NeoCenterLED), color(color_name));
-  strip.show();
-}
-
-void neoFlashAll(String color_name, int periodOn, int periodOff){  
-  neoFlashRange(color_name, 0, strip.numPixels(), periodOn, periodOff);
-}
-
-void neoFlashCenter(String color_name){
-//  strip.setPixelColor(neoAllOffset(NeoCenterLED), color(color_name));
-//  strip.show();
-}
-
-
-//Range of Pixels
-void neoSetRange(String color_name, int start_point, int end_point){
-
-
-  if (color_name == "rainbow"){
-    for (int i=start_point; i != end_point; i = (i + 1) % strip.numPixels()) {
-      setPixelToRainbow(i);
-    }
-  } else {
-    int n = end_point - start_point;
-    uint32_t c = color(color_name);
-    for (int i=start_point; i < start_point + n; i++) {
-      setPixelColor(i % strip.numPixels(), c);
-    }
-  }
-  
-  strip.show();
-}
-
-void neoFlashRange(String color_name, int start_point, int end_point, int periodOn, int periodOff){  
-  int toggleAction = toggleTimerAction(periodOn, periodOff);
-  
-  if (toggleAction == 1){
-    onNow = true;
-    neoSetRange(color_name, start_point, end_point);  
-  } else if (toggleAction == 2) {
-    onNow = false;
-    neoSetRange("black", start_point, end_point);
-  }
-}
-
-
-void setPixelColor(int i, uint32_t c){
-  strip.setPixelColor(neoRingOffset(i), c); 
-}
-
-void setPixelToRainbow(int i){
-  setPixelColor(i, rainbowColor(i)); 
-}
-
-
-
-
-
-
-
-// Offset Origin
-int neoRingOffset(int o){
-  if (o == NeoCenterLED)
-    o+=1;
-  return neoAllOffset(o);
-}
-
-// Offset Origin
-int neoAllOffset(int o){
-  int origin = strip.numPixels() - NeoPixelOffset;
-  return abs((origin + o) % strip.numPixels());
-}
-
-
-
-
-
-
-
-
-
 
 
 
@@ -372,7 +283,7 @@ uint32_t color(String name){
 }
 
 uint32_t rainbowColor(int LEDnum){
-  return Wheel(((LEDnum * 256 / strip.numPixels()) & 255));
+  return Wheel(((LEDnum * 256 / neoRingSize) & 255));
 }
 
 uint32_t healthColor(int i) {
@@ -528,11 +439,11 @@ void measureHug(){
     neoFlashRange("rainbow", hugPower, top, 200, 200);
     delay(200);
     elapsed_ms += 200;
-    
   }
   
-  // Show off the added hug for a bit longer so the hugger can see
-  for(int i=0;i<2000;i+=300){
+
+  // Show off the added hug for a bit longer so the hugger can see  
+  for(int i=0;i<4000;i+=300){
     neoFlashRange("rainbow", hugPower, top, 200, 200);
     delay(200);
   }
@@ -625,9 +536,24 @@ void showTotalHugs() {
 
 
 // BRIGHTNESS!!!
-
+int autoBrightnessLevels[] = {1,10,10,12,17,25,25,25,40,50,150,255,255,255,255,255,255,255,255};
 int brightnessLevels[] = {1, 10, 25, 50, 100, 255};
 int brightnessLevel = 2;
+
+void autoSetBrightness(){
+   int ambientLight = analogRead(PhotoPIN);
+   int ambientLevel = ambientLight / 90;
+   strip.setBrightness(autoBrightnessLevels[ambientLevel]);
+//   Serial.print("Ambient Light: ");
+//   Serial.println(ambientLevel);
+//
+//   Serial.print("Brightness Level: ");
+//   Serial.println(brightnessLevels[brightnessLevel]);
+//   Serial.println("");   
+//   Serial.print("Auto Brightness Level: ");
+//   Serial.println(autoBrightnessLevels[ambientLevel]);
+//   delay(500);
+}
 
 void setBrightnessMode(boolean init){
   if (upButtonPressed()){
@@ -662,7 +588,6 @@ void setColorMode(boolean init){
   
   neoSetAll(colorSettings[neoRingColor]);
   neoSetCenter(colorSettings[neoCenterColor]);
-  strip.show();
 }
 
 
@@ -694,8 +619,8 @@ void vizMode(boolean init){
   if (vizSubMode==0){
     int toggleAction = toggleTimerAction(300, 300);
     if (toggleAction){
-      int end_point = (start_point+9) % strip.numPixels();
-      start_point = (start_point+1) % strip.numPixels();      
+      int end_point = start_point+9;
+      start_point++; 
       neoClear();
       neoSetRange("rainbow",start_point, end_point);
     }
@@ -729,7 +654,7 @@ void vizMode(boolean init){
 //  if (toggleAction){
 //    neoClear();
 //    neoSetRange("rainbow",p,9);
-//    p = p++ % strip.numPixels();
+//    p = p++ % neoRingSize;
 //  }
 //}
 
@@ -773,12 +698,12 @@ void volumeMode(boolean init){
   if (muted){
     // Ears
     neoSetRange("white",1,3);
-    neoSetRange("white",11,13);
+    neoSetRange("white",10,12);
 
     // Looks like a strike through the ears    
     neoSetCenter("red");
-    neoSetRange("red",3,4);   
-    neoSetRange("red",12,13);     
+    neoSetRange("red",4,4);   
+    neoSetRange("red",13,13);     
   }
   else {
     // Ears
@@ -808,7 +733,7 @@ void volumeMode(boolean init){
 
 // Fill the dots one after the other with a color
 void colorWipe(uint32_t c, uint8_t wait) {
-  for(uint16_t i=0; i<strip.numPixels(); i++) {
+  for(uint16_t i=0; i < neoRingSize; i++) {
       strip.setPixelColor(i, c);
       strip.show();
       delay(wait);
@@ -821,7 +746,7 @@ void rainbow() {
   uint16_t i, j;
 
   for(j=0; j<256; j++) {
-    for(i=0; i<strip.numPixels(); i++) {
+    for(i=0; i<neoRingSize; i++) {
       strip.setPixelColor(i, Wheel((i+j) & 255));
     }
     strip.show();
@@ -835,14 +760,14 @@ void rainbowCycle() {
   
   uint16_t i, j,p;
   int hugPower = 10;
-  int deadPixels = strip.numPixels() - hugPower;
+  int deadPixels = neoRingSize - hugPower;
 
-  for(j=0,p=0; j<256*5; j++,p = p++ % strip.numPixels()) { // 5 cycles of all colors on wheel
-    for(i=0; i < strip.numPixels(); i++) {
-      strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + j) & 255));
+  for(j=0,p=0; j<256*5; j++,p = p++ % neoRingSize) { // 5 cycles of all colors on wheel
+    for(i=0; i < neoRingSize; i++) {
+      strip.setPixelColor(i, Wheel(((i * 256 / neoRingSize) + j) & 255));
     }
     for(i=0; i < deadPixels; i++) {
-      strip.setPixelColor((p+i) % strip.numPixels(), 0);
+      strip.setPixelColor((p+i) % neoRingSize, 0);
     }
     strip.show();
     delay(wait);
@@ -854,14 +779,14 @@ void rainbowCycle() {
 void theaterChase(uint32_t c, uint8_t wait) {
   for (int j=0; j<10; j++) {  //do 10 cycles of chasing
     for (int q=0; q < 3; q++) {
-      for (int i=0; i < strip.numPixels(); i=i+3) {
+      for (int i=0; i < neoRingSize; i=i+3) {
         strip.setPixelColor(i+q, c);    //turn every third pixel on
       }
       strip.show();
      
       delay(wait);
      
-      for (int i=0; i < strip.numPixels(); i=i+3) {
+      for (int i=0; i < neoRingSize; i=i+3) {
         strip.setPixelColor(i+q, 0);        //turn every third pixel off
       }
     }
@@ -872,17 +797,98 @@ void theaterChase(uint32_t c, uint8_t wait) {
 void theaterChaseRainbow(uint8_t wait) {
   for (int j=0; j < 256; j++) {     // cycle all 256 colors in the wheel
     for (int q=0; q < 3; q++) {
-        for (int i=0; i < strip.numPixels(); i=i+3) {
+        for (int i=0; i < neoRingSize; i=i+3) {
           strip.setPixelColor(i+q, Wheel( (i+j) % 255));    //turn every third pixel on
         }
         strip.show();
        
         delay(wait);
        
-        for (int i=0; i < strip.numPixels(); i=i+3) {
+        for (int i=0; i < neoRingSize; i=i+3) {
           strip.setPixelColor(i+q, 0);        //turn every third pixel off
         }
     }
   }
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//COLOR & LED HELPERS
+void neoClear(){
+  neoSetAll("black");
+}
+
+void neoSetAll(String color_name){
+  neoSetRange(color_name,0,neoRingLastPixel);
+}
+
+void neoSetCenter(String color_name){
+  strip.setPixelColor(neoCenterPixelAddress, color(color_name));
+  strip.show();
+}
+
+void neoFlashAll(String color_name, int periodOn, int periodOff){  
+  neoFlashRange(color_name, 0, neoRingLastPixel, periodOn, periodOff);
+}
+
+void neoFlashCenter(String color_name){
+///
+}
+
+
+//Range of Pixels
+void neoSetRange(String color_name, int start_point, int end_point){
+
+  if (color_name == "rainbow"){
+    for (int i=start_point; i <= end_point; i++) {
+      setPixelToRainbow(i);
+    }
+  } else {
+    uint32_t c = color(color_name);
+    for (int i=start_point; i <= end_point; i++) {
+      setPixelColor(i, c);   
+    }
+  }
+  
+  strip.show();
+}
+
+void neoFlashRange(String color_name, int start_point, int end_point, int periodOn, int periodOff){  
+  int toggleAction = toggleTimerAction(periodOn, periodOff);
+  
+  if (toggleAction == 1){
+    onNow = true;
+    neoSetRange(color_name, start_point, end_point);  
+  } else if (toggleAction == 2) {
+    onNow = false;
+    neoSetRange("black", start_point, end_point);
+  }
+}
+
+
+void setPixelColor(int i, uint32_t c){
+  strip.setPixelColor(neoRingPixelAddress(i), c); 
+}
+
+void setPixelToRainbow(int i){
+  setPixelColor(i, rainbowColor(i)); 
+}
+
+
+
+// Takes a number 0-15 and returns a number 0-15 that orients the ring according to where the necklace holds it.
+int neoRingPixelAddress(int pixelNum){  
+  return (neoRingOrigin + pixelNum) % neoRingSize;
+}
