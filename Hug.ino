@@ -1,6 +1,7 @@
 // Includes
 #include <Adafruit_NeoPixel.h>
 #include <Time.h>
+#include <EEPROM.h>
 
 //Input/Output
 
@@ -27,7 +28,7 @@ int neoRingLastPixel = neoRingSize - 1;
 int neoCenterPixelAddress = neoRingSize;
 
 int neoCenterColor = 1;
-int neoRingColor = 55; // 227, 199, 55 all look beautiful
+int favoriteColor; // 227, 199, 55 all look beautiful
 
 // SPEAKER SETUP
 #define toneC    1911
@@ -61,20 +62,25 @@ int neoRingColor = 55; // 227, 199, 55 all look beautiful
 // GLOBAL VARIABLES
 
 // GLOBAL HUG VARIABLES
-int hugPower = 10; //starting level
+int hugPower; //starting level
 int hugPowerMax = 15; // //LEDs labelled 0-15 one of these is the center pixel
-int totalHugs = 0;
 unsigned long timeOfLastHug;
 int p;
 int hugPowerResilianceUnitary[16] =  { 3600,3600,1800,1800,  600,600,300,300,  60,60,60,30,  16, 8, 4, 2 };
 int hugPowerResiliance[16];            
                            
+// EEProm (Long Term Mem Storage)
+int hugPowerAddress = 0;
+int totalHugsAddress = 1;
+int favoriteColorAddress = 2;
+int favoriteVizModeAddress = 3;
 
 // GLOBAL MODE-SELECTION VARIABLES
 void breakOnTap(void (*mode_func)(boolean init));
 boolean onNow = false;
 int modeNumber = 0;
 unsigned long timeToggled;
+int favoriteVizMode;
 
 boolean muted = false; // if i set this to true, the shit stops working... wtf
 boolean sleepDisplay = false;
@@ -113,6 +119,11 @@ void setup() {
 
   // SET HUG TIME NOW
   setTimeOfLastHugToNow();
+  
+  // LOAD DATA FROM EEPROM
+  hugPower = getHugPower();
+  favoriteColor = getFavoriteColor();
+  favoriteVizMode = getFavoriteVizMode();
   
   // SET UP CORRECT RESILIENCES
   for (int i = neoRingSize; i >= 0; i--)
@@ -183,8 +194,40 @@ void loop(){
 
 
 
+int getHugPower(){
+  return EEPROM.read(hugPowerAddress);
+}
 
+int setHugPower(int value){
+  EEPROM.write(hugPowerAddress,value);
+  return value;
+}
 
+int getTotalHugs(){
+  return EEPROM.read(totalHugsAddress);
+}
+
+void incrementTotalHugs(){
+  EEPROM.write(totalHugsAddress,(getTotalHugs()+1));
+}
+
+int getFavoriteColor(){
+  return EEPROM.read(favoriteColorAddress);
+}
+
+int setFavoriteColor(int value){
+  EEPROM.write(favoriteColorAddress,value);
+  return value;
+}
+
+int getFavoriteVizMode(){
+  return EEPROM.read(favoriteVizModeAddress);
+}
+
+int setFavoriteVizMode(int value){
+  EEPROM.write(favoriteVizModeAddress,value);
+  return value;
+}
 
 
 // BRIGHTNESS!!!
@@ -405,7 +448,7 @@ boolean timeToLoseHugPower(){
 }
 
 void dropHugPower(){
-  hugPower = max((hugPower-1), 0);
+  hugPower = setHugPower(max((hugPower-1), 0));
 }
 
 
@@ -503,8 +546,8 @@ void measureHug(){
   }
 
   // Log the Recored Hug
-  hugPower = min((hugPower + addedHugPower),hugPowerMax);
-  totalHugs++;
+  hugPower = setHugPower(min((hugPower + addedHugPower),hugPowerMax));
+  incrementTotalHugs();
   setTimeOfLastHugToNow();    
 }
 
@@ -532,8 +575,6 @@ void hugMode(boolean init) {
     dropHugPower();
   }
 
-  // Show Hug Power
-  //neoSetRange("rainbow",0,hugPower); 
   vizRainbowSnake();
 }
 
@@ -560,6 +601,7 @@ void vizRainbowSnake(){
 
 // breaks if totalHugs > 16 *16
 void showTotalHugs() {
+  int totalHugs = getTotalHugs();
   int numberingSystem = 10;
   
   if (totalHugs <= numberingSystem)
@@ -579,27 +621,27 @@ void showTotalHugs() {
 
 
 
-int vizSubMode = 0;
+
 int numSubModes = 6;
 int vizColor = 0;
 
 void vizMode(boolean init){  
   if (upButtonPressed()){
-    vizSubMode = (numSubModes + vizSubMode + 1) % numSubModes;
+    favoriteVizMode = setFavoriteVizMode((numSubModes + favoriteVizMode + 1) % numSubModes);
     vizColor = 0;
     neoClear();
     while (upButtonPressed())
       delay(100);
   }
   if (downButtonPressed()){
-    vizSubMode = (numSubModes + vizSubMode - 1) % numSubModes;
+    favoriteVizMode = setFavoriteVizMode((numSubModes + favoriteVizMode - 1) % numSubModes);
     vizColor = 0;
     neoClear();
     while (downButtonPressed())
       delay(100);
   }
 
-  switch(vizSubMode){
+  switch(favoriteVizMode){
     case 0:
       vizCoolColorCycle();
       break;
@@ -627,25 +669,18 @@ void vizMode(boolean init){
 }
 
 
-void vizChange(){
- neoClear();
-// playToneSad();
- delay(200);
-}
-
-
 
 void setColorMode(boolean init){ 
   if (upButtonPressed()){
-    neoRingColor = (255 + neoRingColor + 1) % 255;
+    favoriteColor = setFavoriteColor(favoriteColor = (255 + favoriteColor + 1) % 255);
     delay(10);
   }
   if (downButtonPressed()){
-    neoRingColor = (255 + neoRingColor - 1) % 255;
+    favoriteColor = setFavoriteColor((255 + favoriteColor - 1) % 255);
     delay(10);
   }
  
-  neoSetAll(Wheel(neoRingColor));
+  neoSetAll(Wheel(favoriteColor));
 }
 
 unsigned long idleTimer;
