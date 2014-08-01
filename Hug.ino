@@ -66,7 +66,7 @@ int hugPower; //starting level
 int hugPowerMax = 15; // //LEDs labelled 0-15 one of these is the center pixel
 unsigned long timeOfLastHug;
 int p;
-int hugPowerMarginalResiliance[16] =  { 2,4,8,16, 30,60,60,60, 300,300,600,600, 1800,1800,3600,3600 };
+int neoPixelResiliance[16] =  { 2,4,8,16, 30,60,60,60, 300,300,600,600, 1800,1800,3600,3600 };
 int hugPowerResiliance[16];
                            
 // EEProm (Long Term Mem Storage)
@@ -122,10 +122,11 @@ void setup() {
   setTimeOfLastHugToNow();
 
   // GENERATE hugPowerResiliance[] (Total Seconds Until that LED dies) from hugPowerMarginalResiliance[] (Seconds after the previous LED dies, does this LED die)
-  hugPowerResiliance[0] = hugPowerMarginalResiliance[0]; 
-  for (int i = 1; i < neoRingSize; i++)
-    hugPowerResiliance[i] = hugPowerResiliance[i-1] + hugPowerMarginalResiliance[i]; 
+  hugPowerResiliance[hugPowerMax] = neoPixelResiliance[0]; 
   
+  for (int i = 1, h = (hugPowerMax-1);   i <= hugPowerMax;  i++, h--)
+    hugPowerResiliance[h] = hugPowerResiliance[h+1] + neoPixelResiliance[i]; 
+
   // NEOPIXEL SETUP
   strip.begin();
   autoSetBrightness();
@@ -173,6 +174,9 @@ void loop(){
       modeNumber = 0;
       measureHug();
       return;
+    }
+    if (timeToLoseHugPower()){
+      dropHugPower();
     }
     
     
@@ -231,7 +235,7 @@ int setFavoriteVizMode(int value){
 
 
 // BRIGHTNESS!!!
-int autoBrightnessLevels[] = {5,8,12,15,17,25,25,30,50,100,150,255,255,255,255,255,255,255,255};
+int autoBrightnessLevels[] = {10,12,15,17,20,25,27,35,55,100,150,255,255,255,255,255,255,255,255};
 float averageAmbientLevel = 0; // this will be the moving average of readings to prevent flicker
 
 void autoSetBrightness(){
@@ -432,7 +436,7 @@ void setTimeOfLastHugToNow(){
 }
 
 boolean timeToLoseHugPower(){
-  return (timeSinceLastHug() > hugPowerResiliance[hugPower]);
+  return (timeSinceLastHug() > hugPowerResiliance[hugPower]); 
 }
 
 void dropHugPower(){
@@ -493,15 +497,19 @@ void measureHug(){
   // MEASURE HUG  
   int numHugReadings = 0;
   float hugStrengthAvg = 0;
+  int addedHugPower = 0;
   int newHugPower = hugPower+1; //default hug gives +1
 
   while (beingHugged()) {
+ 
     // Calculate New Hug Power
-    hugStrengthAvg = ((hugStrengthAvg * (numHugReadings-1)) + hugStrength()) / numHugReadings++;     
-    newHugPower = min(sqrt((hugStrengthAvg * numHugReadings) / 3),hugPowerMax);
+    hugStrengthAvg = ((hugStrengthAvg * (numHugReadings-1)) + hugStrength()) / ++numHugReadings; 
+    // Tweak this formula to adjust how quickly hugs add hug power
+    addedHugPower = max(1,sqrt((hugStrengthAvg * numHugReadings) / 3));
+    newHugPower = min((hugPower + addedHugPower),hugPowerMax);
 
     // Animate and Play Sounds
-    neoFlashRange("rainbow", hugPower, newHugPower, 200, 200);
+    neoFlashRange("rainbow", hugPower+1, newHugPower, 200, 200);
     if ((numHugReadings % 5) == 0)
       playToneHappy();
       
@@ -515,11 +523,11 @@ void measureHug(){
   for(int i=0;i<10;i++)
     autoSetBrightness();
   // Flash Hug Power  
-  for(int i=0;i<3000;i+=500){
+  for(int i=0;i<2500;i+=500){
     if (newHugPower == hugPowerMax)
       neoFlashRange("rainbow", 0, newHugPower, 200, 200);
     else
-      neoFlashRange("rainbow", hugPower, newHugPower, 200, 200);
+      neoFlashRange("rainbow", hugPower+1, newHugPower, 200, 200);
     playToneHappy();
     delay(500);
   }  
@@ -550,10 +558,6 @@ void hugMode(boolean init) {
     neoClear();
   }
 
-  if (timeToLoseHugPower()){
-    dropHugPower();
-  }
-
   vizRainbowSnake();
 }
 
@@ -563,10 +567,9 @@ int start_point = 0;
 void vizRainbowSnake(){
   int toggleAction = toggleTimerAction(300, 300);
   if (toggleAction){
-    int end_point = start_point+hugPower;
-    start_point++; 
-    neoClear();
-    neoSetRange("rainbow",start_point, end_point);
+    neoClear();  
+    neoSetRange("rainbow", start_point, start_point+hugPower);
+    start_point++;
   } 
 }
 
