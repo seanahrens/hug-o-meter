@@ -62,6 +62,7 @@ int favoriteColor; // 227, 199, 55 all look beautiful
 
 // EEPROM (Long Term Memory Storage)
 int timeSinceLastHugAddress = 0;
+int timeSinceLastHugUnits = 900; //15min
 int totalHugsAddress = 1;
 int favoriteColorAddress = 2; // need to make this okay
 int favoriteVizModeAddress = 3;
@@ -75,8 +76,9 @@ int secondsUntilStore = 5;
 int hugPowerMax = 15; // //LEDs labelled 0-15 one of these is the center pixel
 int hugPower = hugPowerMax; //starting level
 unsigned long timeOfLastHug;
-int neoPixelResiliance[16] =  { 2,4,8,16, 30,60,60,60, 300,300,600,600, 1800,1800,3600,3600 };
+int neoPixelResiliance[16] =  { 2,4,8,16, 30,60,90,120, 300,450,600,900, 1800,3600,4800,10000 };
 int hugPowerResiliance[16];                      
+int hugsToday = 0;
 
 // MODE-SELECTION VARIABLES
 void breakOnTap(void (*mode_func)(boolean init));
@@ -116,20 +118,19 @@ void setup() {
   pinMode(ButtonInPIN,INPUT);
   pinMode(ButtonUpPIN,INPUT);
 
+  // GENERATE hugPowerResiliance[] (Total Seconds Until that LED dies) from hugPowerMarginalResiliance[] (Seconds after the previous LED dies, does this LED die)
+  hugPowerResiliance[hugPowerMax] = neoPixelResiliance[0]; 
+  for (int i = 1, h = (hugPowerMax-1);   i <= hugPowerMax;  i++, h--)
+    hugPowerResiliance[h] = hugPowerResiliance[h+1] + neoPixelResiliance[i]; 
+
+  // SET HUG TIME NOW
+  timeOfLastHug = now();
+  
   // LOAD DATA FROM EEPROM
   favoriteColor = getFavoriteColorStore();
   favoriteVizMode = getFavoriteVizModeStore();
   muted = getMutedStore();
-
-  // SET HUG TIME NOW
-  timeOfLastHug = now();
   setTime(getTimeSinceLastHugStore());
-
-  // GENERATE hugPowerResiliance[] (Total Seconds Until that LED dies) from hugPowerMarginalResiliance[] (Seconds after the previous LED dies, does this LED die)
-  hugPowerResiliance[hugPowerMax] = neoPixelResiliance[0]; 
-  
-  for (int i = 1, h = (hugPowerMax-1);   i <= hugPowerMax;  i++, h--)
-    hugPowerResiliance[h] = hugPowerResiliance[h+1] + neoPixelResiliance[i]; 
 
   // NEOPIXEL SETUP
   autoSetBrightness();  
@@ -508,6 +509,7 @@ void measureHug(){
   // RECORD HUG
   hugPower = newHugPower;
   incrementTotalHugsStore();
+  hugsToday++; //this only does since last power on but whatever for now
   setTimeOfLastHugToNow();
 }
 
@@ -527,9 +529,13 @@ int subModeIncrementer = 1;
 
 void hugMode(boolean init) {  
   
-  while (upButtonPressed() || downButtonPressed()){
-    neoClear();
-    showTotalHugs();
+  if (upButtonPressed() || downButtonPressed()){
+    if (upButtonPressed())
+      showHugsToday();
+    else if (downButtonPressed())
+      showTotalHugs();
+      
+    while (downButtonPressed() || upButtonPressed()){}
     delay(300);
     neoClear();
   }
@@ -550,23 +556,28 @@ void vizRainbowSnake(){
 }
 
 
-// breaks if totalHugs > 60
 void showTotalHugs() {
-  int totalHugs = getTotalHugsStore();
-  int numberingSystem = 10;
-  
-  if (totalHugs <= numberingSystem)
-    neoSetRange(199,0,totalHugs-1);
-  else {
-    int numFullFills = totalHugs / numberingSystem;
-    int remainingSingleHugs = totalHugs - (numFullFills * numberingSystem);
-    neoSetRange("red",0,numFullFills-1);
-    neoSetRange(199,numFullFills,numFullFills+remainingSingleHugs-1);
-  }
+  showNumber(getTotalHugsStore());
 }
 
+void showHugsToday() {
+  showNumber(hugsToday);
+}
 
+// breaks if number > 60
+void showNumber(int number) {
+  neoClear();
+  int numberingSystem = 10;
 
+  if (number <= numberingSystem)
+    neoSetRange(199,0,number-1);
+  else {
+    int numFullFills = number / numberingSystem;
+    int remainingSingleNumbers = number - (numFullFills * numberingSystem);
+    neoSetRange("red",0,numFullFills-1);
+    neoSetRange(199,numFullFills,numFullFills+remainingSingleNumbers-1);
+  }
+}
 
 
 
@@ -911,7 +922,7 @@ int neoRingPixelAddress(int pixelNum){
 // EEPROM
 
 unsigned long getTimeSinceLastHugStore(){
-  return EEPROM.read(timeSinceLastHugAddress);
+  return EEPROM.read(timeSinceLastHugAddress)*timeSinceLastHugUnits;
 }
 int getTotalHugsStore(){
   return EEPROM.read(totalHugsAddress);
@@ -930,8 +941,9 @@ boolean getMutedStore(){
 void storeTimeSinceLastHug(){
   if (timeSinceLastHug() != getTimeSinceLastHugStore()){
     EepromAlarm();
-    playToneSad(); playToneSad();
-    EEPROM.write(timeSinceLastHugAddress,timeSinceLastHug());
+    play(sadTones,4,50,false);
+    play(sadTones,4,50,false);
+    EEPROM.write(timeSinceLastHugAddress,min(255,timeSinceLastHug()/timeSinceLastHugUnits));
   }
 }
 void incrementTotalHugsStore(){
