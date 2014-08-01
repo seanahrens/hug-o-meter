@@ -18,7 +18,9 @@
 #define ButtonInPIN 10 
 #define ButtonUpPIN 3 
 
+
 // Set up
+
 // NEOPIXEL SETUP
 #define neoRingOrigin 9
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(17, NeoPixelPIN, NEO_GRB + NEO_KHZ800);
@@ -58,25 +60,25 @@ int favoriteColor; // 227, 199, 55 all look beautiful
 #define tonep       0 
 
 
-
-// GLOBAL VARIABLES
-
-// GLOBAL HUG VARIABLES
-int hugPower = 12; //starting level
-int hugPowerMax = 15; // //LEDs labelled 0-15 one of these is the center pixel
-unsigned long timeOfLastHug;
-int p;
-int neoPixelResiliance[16] =  { 2,4,8,16, 30,60,60,60, 300,300,600,600, 1800,1800,3600,3600 };
-int hugPowerResiliance[16];
-                           
-// EEProm (Long Term Mem Storage)
-//int hugPowerAddress = 0; can't use EEProm for this because 100,000 write limit
+// EEPROM (Long Term Memory Storage)
+int timeSinceLastHugAddress = 0;
 int totalHugsAddress = 1;
 int favoriteColorAddress = 2; // need to make this okay
 int favoriteVizModeAddress = 3;
 boolean mutedAddress = 4;
+int secondsUntilStore = 5;
 
-// GLOBAL MODE-SELECTION VARIABLES
+
+// GLOBAL VARIABLES
+
+// HUG VARIABLES
+int hugPowerMax = 15; // //LEDs labelled 0-15 one of these is the center pixel
+int hugPower = hugPowerMax; //starting level
+unsigned long timeOfLastHug;
+int neoPixelResiliance[16] =  { 2,4,8,16, 30,60,60,60, 300,300,600,600, 1800,1800,3600,3600 };
+int hugPowerResiliance[16];                      
+
+// MODE-SELECTION VARIABLES
 void breakOnTap(void (*mode_func)(boolean init));
 boolean onNow = false;
 int modeNumber = 0;
@@ -120,7 +122,8 @@ void setup() {
   muted = getMutedStore();
 
   // SET HUG TIME NOW
-  setTimeOfLastHugToNow();
+  timeOfLastHug = now();
+  setTime(getTimeSinceLastHugStore());
 
   // GENERATE hugPowerResiliance[] (Total Seconds Until that LED dies) from hugPowerMarginalResiliance[] (Seconds after the previous LED dies, does this LED die)
   hugPowerResiliance[hugPowerMax] = neoPixelResiliance[0]; 
@@ -129,8 +132,8 @@ void setup() {
     hugPowerResiliance[h] = hugPowerResiliance[h+1] + neoPixelResiliance[i]; 
 
   // NEOPIXEL SETUP
+  autoSetBrightness();  
   strip.begin();
-  autoSetBrightness();
     
   // BEEP TO LET KNOW ITS ON
   playToneHappy(); playToneHappy();
@@ -152,7 +155,7 @@ void loop(){
   // Loop the Mode 
   while (true){  
     autoSetBrightness();
-    
+
     // Detect Button Input
     if (inButtonPressed()){
       if (inButtonLetUpQuickly())
@@ -180,7 +183,10 @@ void loop(){
       dropHugPower();
     }
     
-    
+    // Every 30 min store to EEPROM the Time Since Last Hug
+    if (timeSinceLastHug() > (getTimeSinceLastHugStore() + 1800))
+      storeTimeSinceLastHug();
+
     if (sleepDisplay)
       neoClear();
     else
@@ -393,17 +399,13 @@ boolean inButtonLetUpQuickly(){
 
 // HUG MEASURMENT!!!!
 
-//void initHugPower(int power){
-//  setTimeOfLastHugToNow();
-//  hugPower = power;
-//}
-
 int timeSinceLastHug(){
   return (now() - timeOfLastHug);
 }
 
 void setTimeOfLastHugToNow(){
   timeOfLastHug = now();
+  storeTimeSinceLastHug();
 }
 
 boolean timeToLoseHugPower(){
@@ -615,8 +617,8 @@ void vizMode(boolean init){
     // add: breathing modes
   }
   
-  
-  if (idleAlarmTriggered(10))
+  // if it's been N seconds since this mode has changed, store in EEPROM   
+  if (idleAlarmTriggered(secondsUntilStore))
     storeFavoriteVizMode();
 }
 
@@ -635,8 +637,8 @@ void setColorMode(boolean init){
 
   neoSetAll(Wheel(favoriteColor));
     
-  // if it's been 10 seconds this or mode has changed, store in EEPROM 
-  if (idleAlarmTriggered(10)){
+  // if it's been N seconds since this mode has changed, store in EEPROM 
+  if (idleAlarmTriggered(secondsUntilStore)){
     storeFavoriteColor();
   }
 }
@@ -908,7 +910,9 @@ int neoRingPixelAddress(int pixelNum){
 
 // EEPROM
 
-
+unsigned long getTimeSinceLastHugStore(){
+  return EEPROM.read(timeSinceLastHugAddress);
+}
 int getTotalHugsStore(){
   return EEPROM.read(totalHugsAddress);
 }
@@ -923,7 +927,13 @@ boolean getMutedStore(){
 }
 
 
-
+void storeTimeSinceLastHug(){
+  if (timeSinceLastHug() != getTimeSinceLastHugStore()){
+    EepromAlarm();
+    playToneSad(); playToneSad();
+    EEPROM.write(timeSinceLastHugAddress,timeSinceLastHug());
+  }
+}
 void incrementTotalHugsStore(){
   EepromAlarm();
   EEPROM.write(totalHugsAddress,(getTotalHugsStore()+1));
@@ -951,5 +961,5 @@ boolean storeMuted(){
 // Since EEPROM is low-durability storage, it's important to ensure minimal writes (can only do 100,000). 
 boolean EepromAlarmOn = false; // to trigger the alarm, turn this on
 void EepromAlarm(){
-  if (EepromAlarmOn){ playToneSad(); playToneSad(); playToneSad(); playToneSad(); }
+  if (EepromAlarmOn){ playToneSad(); playToneSad(); }
 }
