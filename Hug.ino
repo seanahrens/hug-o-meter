@@ -62,7 +62,7 @@ int favoriteColor; // 227, 199, 55 all look beautiful
 // GLOBAL VARIABLES
 
 // GLOBAL HUG VARIABLES
-int hugPower; //starting level
+int hugPower = 12; //starting level
 int hugPowerMax = 15; // //LEDs labelled 0-15 one of these is the center pixel
 unsigned long timeOfLastHug;
 int p;
@@ -70,10 +70,11 @@ int neoPixelResiliance[16] =  { 2,4,8,16, 30,60,60,60, 300,300,600,600, 1800,180
 int hugPowerResiliance[16];
                            
 // EEProm (Long Term Mem Storage)
-int hugPowerAddress = 0;
+//int hugPowerAddress = 0; can't use EEProm for this because 100,000 write limit
 int totalHugsAddress = 1;
-int favoriteColorAddress = 2;
+int favoriteColorAddress = 2; // need to make this okay
 int favoriteVizModeAddress = 3;
+boolean mutedAddress = 4;
 
 // GLOBAL MODE-SELECTION VARIABLES
 void breakOnTap(void (*mode_func)(boolean init));
@@ -82,7 +83,7 @@ int modeNumber = 0;
 unsigned long timeToggled;
 int favoriteVizMode;
 
-boolean muted = false; // if i set this to true, the shit stops working... wtf
+boolean muted; // if i set this to true, the shit stops working... wtf
 boolean sleepDisplay = false;
 
 // THE MODES AVAILABLE
@@ -114,9 +115,9 @@ void setup() {
   pinMode(ButtonUpPIN,INPUT);
 
   // LOAD DATA FROM EEPROM
-  hugPower = getHugPower();
-  favoriteColor = getFavoriteColor();
-  favoriteVizMode = getFavoriteVizMode();
+  favoriteColor = getFavoriteColorStore();
+  favoriteVizMode = getFavoriteVizModeStore();
+  muted = getMutedStore();
 
   // SET HUG TIME NOW
   setTimeOfLastHugToNow();
@@ -130,7 +131,7 @@ void setup() {
   // NEOPIXEL SETUP
   strip.begin();
   autoSetBrightness();
-  
+    
   // BEEP TO LET KNOW ITS ON
   playToneHappy(); playToneHappy();
 }
@@ -188,6 +189,11 @@ void loop(){
   
   // We just broke into the next mode
   modeNumber = (modeNumber + 1) % numModes;
+  
+  // Since we switching modes, let's remember the settings of the current mode (these fx only actually do this if changed)
+  storeFavoriteVizMode();
+  storeFavoriteColor();
+  
   neoSetAll("black");
   playToneHappy();
   delay(200);
@@ -196,42 +202,6 @@ void loop(){
 
 
 
-int getHugPower(){
-  return EEPROM.read(hugPowerAddress);
-}
-
-int setHugPower(int value){
-  if ((value >= 0) && (value <= hugPowerMax)){
-    EEPROM.write(hugPowerAddress,value);
-    return value;
-  }
-}
-
-int getTotalHugs(){
-  return EEPROM.read(totalHugsAddress);
-}
-
-void incrementTotalHugs(){
-  EEPROM.write(totalHugsAddress,(getTotalHugs()+1));
-}
-
-int getFavoriteColor(){
-  return EEPROM.read(favoriteColorAddress);
-}
-
-int setFavoriteColor(int value){
-  EEPROM.write(favoriteColorAddress,value);
-  return value;
-}
-
-int getFavoriteVizMode(){
-  return EEPROM.read(favoriteVizModeAddress);
-}
-
-int setFavoriteVizMode(int value){
-  EEPROM.write(favoriteVizModeAddress,value);
-  return value;
-}
 
 
 // BRIGHTNESS!!!
@@ -258,6 +228,7 @@ void autoSetBrightness(){
 
 void toggleMute(){
   muted = !muted;
+  storeMuted();
 }
 
 int happyTones[] = {tonec, toneG, toneE, toneA};
@@ -440,7 +411,7 @@ boolean timeToLoseHugPower(){
 }
 
 void dropHugPower(){
-  hugPower = setHugPower(max((hugPower-1), 0));
+  hugPower = max((hugPower-1), 0);
 }
 
 
@@ -533,8 +504,8 @@ void measureHug(){
   }  
   
   // RECORD HUG
-  hugPower = setHugPower(newHugPower);
-  incrementTotalHugs();
+  hugPower = newHugPower;
+  incrementTotalHugsStore();
   setTimeOfLastHugToNow();
 }
 
@@ -549,6 +520,9 @@ void measureHug(){
 
 
 //MODES!
+int subModeIncrementer = 1;
+
+
 void hugMode(boolean init) {  
   
   while (upButtonPressed() || downButtonPressed()){
@@ -576,7 +550,7 @@ void vizRainbowSnake(){
 
 // breaks if totalHugs > 60
 void showTotalHugs() {
-  int totalHugs = getTotalHugs();
+  int totalHugs = getTotalHugsStore();
   int numberingSystem = 10;
   
   if (totalHugs <= numberingSystem)
@@ -601,18 +575,17 @@ int numSubModes = 6;
 int vizColor = 0;
 
 void vizMode(boolean init){  
-  if (upButtonPressed()){
-    favoriteVizMode = setFavoriteVizMode((numSubModes + favoriteVizMode + 1) % numSubModes);
+  if (upButtonPressed() || downButtonPressed()){
+    
+    if (upButtonPressed()){ subModeIncrementer = 1; }
+    else if (downButtonPressed()){ subModeIncrementer = -1; }
+    
+    favoriteVizMode = (numSubModes + favoriteVizMode + subModeIncrementer) % numSubModes;
     vizColor = 0;
     neoClear();
-    while (upButtonPressed())
-      delay(100);
-  }
-  if (downButtonPressed()){
-    favoriteVizMode = setFavoriteVizMode((numSubModes + favoriteVizMode - 1) % numSubModes);
-    vizColor = 0;
-    neoClear();
-    while (downButtonPressed())
+    
+    setIdleAlarm();
+    while (upButtonPressed() || downButtonPressed())
       delay(100);
   }
 
@@ -641,33 +614,50 @@ void vizMode(boolean init){
     // add: cool color mode
     // add: breathing modes
   }
+  
+  
+  if (idleAlarmTriggered(10))
+    storeFavoriteVizMode();
 }
 
 
 
 void setColorMode(boolean init){ 
-  if (upButtonPressed()){
-    favoriteColor = setFavoriteColor(favoriteColor = (255 + favoriteColor + 1) % 255);
+  if (upButtonPressed() || downButtonPressed()){
+    if (upButtonPressed())
+      favoriteColor = (255 + favoriteColor + 1) % 255;
+    else if (downButtonPressed())
+      favoriteColor = (255 + favoriteColor - 1) % 255;  
+   
+    setIdleAlarm();
     delay(10);
   }
-  if (downButtonPressed()){
-    favoriteColor = setFavoriteColor((255 + favoriteColor - 1) % 255);
-    delay(10);
-  }
- 
+
   neoSetAll(Wheel(favoriteColor));
+    
+  // if it's been 10 seconds this or mode has changed, store in EEPROM 
+  if (idleAlarmTriggered(10)){
+    storeFavoriteColor();
+  }
 }
 
-unsigned long idleTimer;
+
 unsigned long lastInteractionAt;
+boolean notifiedOfTimeUp = true;
 
-void resetIdleTimer(){
+void setIdleAlarm(){
   lastInteractionAt = now();
+  notifiedOfTimeUp = false;
 }
 
-boolean idleFor(int time){
-  return (now() >= (lastInteractionAt + time));
+boolean idleAlarmTriggered(int time){
+  if (!notifiedOfTimeUp && (now() >= (lastInteractionAt + time)))
+    return notifiedOfTimeUp = true;
+  else
+    return false;
 }
+
+
 
 //int cbIncrementer = 1;
 //int colorBreatheColor = 0;
@@ -816,18 +806,6 @@ void theaterChaseRainbow(uint8_t wait) {
   }
 }
 
-//void rainbowAnimatedMode(boolean init) {
-//  if (init){
-//    p=1;
-//  }
-//  int toggleAction = toggleTimerAction(40, 40);
-//  if (toggleAction){
-//    neoClear();
-//    neoSetRange("rainbow",p,9);
-//    p = p++ % neoRingSize;
-//  }
-//}
-
 
 
 
@@ -845,7 +823,6 @@ void theaterChaseRainbow(uint8_t wait) {
 //COLOR & LED HELPERS
 void neoClear(){
   neoSetAll("black");
-  neoSetCenter("black");
 }
 
 void neoSetAll(String color_name){
@@ -856,19 +833,14 @@ void neoSetAll(uint32_t color){
   neoSetRange(color,0,neoRingLastPixel);
 }
 
-void neoSetCenter(String color_name){
-  strip.setPixelColor(neoCenterPixelAddress, color(color_name));
-  strip.show();
-}
-
 void neoFlashAll(String color_name, int periodOn, int periodOff){  
   neoFlashRange(color_name, 0, neoRingLastPixel, periodOn, periodOff);
 }
 
-void neoFlashCenter(String color_name){
-///
-}
-
+//void neoSetCenter(String color_name){
+//  strip.setPixelColor(neoCenterPixelAddress, color(color_name));
+//  strip.show();
+//}
 
 //Range of Pixels
 void neoSetRange(String color_name, int start_point, int end_point){
@@ -921,62 +893,63 @@ int neoRingPixelAddress(int pixelNum){
 
 
 
-//// DEPRECATED CODE
-
-//int colorSettingsCount = 7;
-//String colorSettings[7] = {"red","orange","yellow","green","blue","violet","white"};
-
-
-//void setBrightnessMode(boolean init){
-//  if (upButtonPressed()){
-//    brightnessLevel = min((brightnessLevel + 1), 4); // fix with sizeof
-//    setBrightness();
-//    delay(500);
-//  }    
-//  if (downButtonPressed()){
-//    brightnessLevel = max((brightnessLevel - 1), 0); // fix with sizeof
-//    setBrightness();
-//    delay(500);
-//  }  
-//
-//  neoSetCenter("white");
-//  neoSetRange("white", 1,7);
-//  neoSetRange("white", 8,15);
-//}
-//
-//void setBrightness(){
-//  strip.setBrightness(brightnessLevels[brightnessLevel]);
-//}
 
 
 
-//void volumeMode(boolean init){  
-//  if (upButtonPressed()){
-//    playToneHappy();
-//    muted = false;
-//    neoClear();
-//  }
-//  if (downButtonPressed()){
-//    playToneSad();
-//    muted = true;
-//    neoClear();
-//  }
-//  
-//  if (muted){
-//    // Ears
-//    neoSetRange("white",1,3);
-//    neoSetRange("white",10,12);
-//
-//    // Looks like a strike through the ears    
-//    neoSetCenter("red");
-//    neoSetRange("red",4,4);   
-//    neoSetRange("red",13,13);     
-//  }
-//  else {
-//    // Ears
-//    neoSetCenter("black");
-//    neoSetRange("white",1,4);
-//    neoSetRange("white",10,13);
-//  }
-// 
-//}
+
+
+
+
+
+
+
+
+
+
+// EEPROM
+
+
+int getTotalHugsStore(){
+  return EEPROM.read(totalHugsAddress);
+}
+int getFavoriteColorStore(){
+  return EEPROM.read(favoriteColorAddress);
+}
+int getFavoriteVizModeStore(){
+  return EEPROM.read(favoriteVizModeAddress);
+}
+boolean getMutedStore(){
+  return EEPROM.read(mutedAddress);
+}
+
+
+
+void incrementTotalHugsStore(){
+  EepromAlarm();
+  EEPROM.write(totalHugsAddress,(getTotalHugsStore()+1));
+}
+void storeFavoriteColor(){
+  if (favoriteColor != getFavoriteColorStore()){
+    EepromAlarm();
+    EEPROM.write(favoriteColorAddress,favoriteColor);
+  }
+}
+void storeFavoriteVizMode(){
+  if (favoriteVizMode != getFavoriteVizModeStore()){
+    EepromAlarm();
+    EEPROM.write(favoriteVizModeAddress,favoriteVizMode);
+  }
+}
+boolean storeMuted(){
+  if (muted != getMutedStore()){
+    EepromAlarm();
+    EEPROM.write(mutedAddress,muted);
+  }
+}
+
+
+// Since EEPROM is low-durability storage, it's important to ensure minimal writes (can only do 100,000). 
+boolean EepromAlarmOn = false; // to trigger the alarm, turn this on
+void EepromAlarm(){
+  if (EepromAlarmOn){ playToneSad(); playToneSad(); playToneSad(); playToneSad(); }
+}
