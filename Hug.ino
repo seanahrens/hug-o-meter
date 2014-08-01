@@ -569,10 +569,10 @@ void showNumber(int number, int smallest_unit) {
   neoClear();
   
   // Round down to the Smallest Unit (eg. make 61 -> 60, 27 -> 20)
-  number = number / smallest_unit; // since number is an int, it won't store decimals. eg: 27/10 -> 2.7 -> 2
-  number = number * smallest_unit; // eg: 2 -> 20
+  //  number = number / smallest_unit; // since number is an int, it won't store decimals. eg: 27/10 -> 2.7 -> 2
+  //  number = number * smallest_unit; // eg: 2 -> 20
 
-  // Calculate Numbering System
+  // Calculate How to Display it with Numbering System
   int hundreds = number / 100;
   int tens = (number - 100*hundreds) / 10;
   int ones = (number - 100*hundreds - 10*tens) / 1;
@@ -580,15 +580,15 @@ void showNumber(int number, int smallest_unit) {
   // Display Numbering System
   int start_point = 0; 
   if (hundreds > 0){
-    neoSetRange("yellow",start_point,hundreds-1);
+    neoSetRange("yellow", start_point, min(neoRingLastPixel, start_point+hundreds-1));
     start_point = hundreds;
   }
   if (tens > 0){
-    neoSetRange("red",start_point,tens-1);
+    neoSetRange("red", start_point, min(neoRingLastPixel, start_point+tens-1));
     start_point = tens;
   }
   if (ones > 0){
-    neoSetRange("blue",start_point,ones-1);
+    neoSetRange("blue", start_point, min(neoRingLastPixel, start_point+ones-1));
     start_point = ones;
   }
 }
