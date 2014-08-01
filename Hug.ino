@@ -555,27 +555,41 @@ void vizRainbowSnake(){
   } 
 }
 
-
+// shows numbers up to 890 without issues 890, 980, 990 will be shown incorrectly. next number after that messed up will be 1790.
 void showTotalHugs() {
-  showNumber(getTotalHugsStore());
+  showNumber(getTotalHugsStore(),10);
 }
 
+// supports numbers up to 89 without issues. 89, 98, 99 will be shown incorrectly. next number after that messed up will be 179.
 void showHugsToday() {
-  showNumber(hugsToday);
+  showNumber(hugsToday,1);
 }
 
-// breaks if number > 60
-void showNumber(int number) {
+void showNumber(int number, int smallest_unit) {
   neoClear();
-  int numberingSystem = 10;
+  
+  // Round down to the Smallest Unit (eg. make 61 -> 60, 27 -> 20)
+  number = number / smallest_unit; // since number is an int, it won't store decimals. eg: 27/10 -> 2.7 -> 2
+  number = number * smallest_unit; // eg: 2 -> 20
 
-  if (number <= numberingSystem)
-    neoSetRange(199,0,number-1);
-  else {
-    int numFullFills = number / numberingSystem;
-    int remainingSingleNumbers = number - (numFullFills * numberingSystem);
-    neoSetRange("red",0,numFullFills-1);
-    neoSetRange(199,numFullFills,numFullFills+remainingSingleNumbers-1);
+  // Calculate Numbering System
+  int hundreds = number / 100;
+  int tens = (number - 100*hundreds) / 10;
+  int ones = (number - 100*hundreds - 10*tens) / 1;
+  
+  // Display Numbering System
+  int start_point = 0; 
+  if (hundreds > 0){
+    neoSetRange("yellow",start_point,hundreds-1);
+    start_point = hundreds;
+  }
+  if (tens > 0){
+    neoSetRange("red",start_point,tens-1);
+    start_point = tens;
+  }
+  if (ones > 0){
+    neoSetRange("blue",start_point,ones-1);
+    start_point = ones;
   }
 }
 
