@@ -10,10 +10,11 @@
 //LilyPad Arduino USB      $25      $15       $ 3         https://www.sparkfun.com/products/12049
 //NeoPixels                $10      $ 8       $ 5         https://www.adafruit.com/products/1655 https://www.adafruit.com/products/1463
 //400mAH LiPo Battery      $ 7      $ 6       $ 5         https://www.sparkfun.com/products/10718
-//Force Sensing Resistor   $ 7      $ 6       $ 1         https://www.adafruit.com/products/1361
+//Force Sensing Resistor   $ 7      $ 6       $ 1         https://www.adafruit.com/products/1361 https://www.adafruit.com/products/166
 //Piezo Buzzer             $ 1      $ 0.75    $ 0.75      https://www.adafruit.com/products/1739
 //Navigation Dial          $ 1.50   $ 1.20    $ 1.20      https://www.sparkfun.com/products/8184
-//Wires/Resistors/Photo    $ 1      $ 0.5     $ 0.25
+//Photo Resistor           $ 1      $ 0.75    $ 0.50
+//Wires/Resistors          $ -      $ -       $ -
 //                         ===========================
 //                         $52      $37.50    $16
 //
@@ -1005,8 +1006,6 @@ boolean getMutedStore(){
 void storeTimeSinceLastHug(){
   if (timeSinceLastHug() != getTimeSinceLastHugStore()){
     EepromAlarm();
-    play(sadTones,4,50,false);
-    play(sadTones,4,50,false);
     EEPROM.write(timeSinceLastHugAddress,min(255,timeSinceLastHug()/timeSinceLastHugUnits));
   }
 }
