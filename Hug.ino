@@ -7,13 +7,13 @@
 ///////////////////////
 // PARTS                   @1       @100      @Custom
 //
-//LilyPad Arduino USB      $25      $15       $ 3         https://www.sparkfun.com/products/12049
+//LilyPad Arduino USB      $25      $15       $ 3         https://www.sparkfun.com/products/12049 http://www.ebay.com/sch/i.html?_from=R40%7CR40&_sacat=0&_nkw=lilypad+usb&rt=nc&LH_BIN=1
 //NeoPixels                $10      $ 8       $ 5         https://www.adafruit.com/products/1655 https://www.adafruit.com/products/1463
-//400mAH LiPo Battery      $ 7      $ 6       $ 5         https://www.sparkfun.com/products/10718
+//400mAH LiPo Battery      $ 7      $ 6       $ 5         https://www.sparkfun.com/products/10718 http://www.ebay.com/sch/i.html?_odkw=lithium+polymer+battery+3.7v+400mah&_osacat=0&_from=R40&_from=R40&_trksid=p2045573.m570.l1313.TR2.TRC1.A0.H0.Xlithium+polymer+battery+.TRS0&_nkw=lithium+polymer+battery+&_sacat=0
 //Force Sensing Resistor   $ 7      $ 6       $ 1         https://www.adafruit.com/products/1361 https://www.adafruit.com/products/166
 //Piezo Buzzer             $ 1      $ 0.75    $ 0.75      https://www.adafruit.com/products/1739
 //Navigation Dial          $ 1.50   $ 1.20    $ 1.20      https://www.sparkfun.com/products/8184
-//Photo Resistor           $ 1      $ 0.75    $ 0.50
+//Photo Resistor           $ 1      $ 0.75    $ 0.50      https://www.adafruit.com/products/161
 //Wires/Resistors          $ -      $ -       $ -
 //                         ===========================
 //                         $52      $37.50    $16
@@ -605,15 +605,15 @@ void vizRainbowSnake(){
 
 // shows numbers up to 890 without issues 890, 980, 990 will be shown incorrectly. next number after that messed up will be 1790.
 void showTotalHugs() {
-  showNumber(getTotalHugsStore(),10);
+  showNumber(getTotalHugsStore());
 }
 
 // supports numbers up to 89 without issues. 89, 98, 99 will be shown incorrectly. next number after that messed up will be 179.
 void showHugsToday() {
-  showNumber(hugsToday,1);
+  showNumber(hugsToday);
 }
 
-void showNumber(int number, int smallest_unit) {
+void showNumber(int number) {
   neoClear();
   
   // Round down to the Smallest Unit (eg. make 61 -> 60, 27 -> 20)
@@ -624,20 +624,21 @@ void showNumber(int number, int smallest_unit) {
   int hundreds = number / 100;
   int tens = (number - 100*hundreds) / 10;
   int ones = (number - 100*hundreds - 10*tens) / 1;
+ 
   
   // Display Numbering System
   int start_point = 0; 
   if (hundreds > 0){
     neoSetRange("yellow", start_point, min(neoRingLastPixel, start_point+hundreds-1));
-    start_point = hundreds;
+    start_point += hundreds;
   }
   if (tens > 0){
     neoSetRange("red", start_point, min(neoRingLastPixel, start_point+tens-1));
-    start_point = tens;
+    start_point += tens;
   }
   if (ones > 0){
     neoSetRange("blue", start_point, min(neoRingLastPixel, start_point+ones-1));
-    start_point = ones;
+    start_point += ones;
   }
 }
 
