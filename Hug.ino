@@ -1,9 +1,30 @@
-// Includes
+///////////////////////
+// INCLUDES
 #include <Adafruit_NeoPixel.h>
 #include <Time.h>
 #include <EEPROM.h>
 
-//Input/Output
+///////////////////////
+// PARTS                   @1       @100      @Custom
+//
+//LilyPad Arduino USB      $25      $15       $ 3         https://www.sparkfun.com/products/12049
+//NeoPixels                $10      $ 8       $ 5         https://www.adafruit.com/products/1655 https://www.adafruit.com/products/1463
+//400mAH LiPo Battery      $ 7      $ 6       $ 5         https://www.sparkfun.com/products/10718
+//Force Sensing Resistor   $ 7      $ 6       $ 1         https://www.adafruit.com/products/1361
+//Piezo Buzzer             $ 1      $ 0.75    $ 0.75      https://www.adafruit.com/products/1739
+//Navigation Dial          $ 1.50   $ 1.20    $ 1.20      https://www.sparkfun.com/products/8184
+//Wires/Resistors/Photo    $ 1      $ 0.5     $ 0.25
+//                         ===========================
+//                         $52      $37.50    $16
+//
+// RETAIL PRICE            -        $90       $90
+
+// MARGIN                           $52.50    $75
+// REVENUE per 100 units            $5250     $7500
+
+
+///////////////////////
+// INPUT / OUTPUT PINS
 
 // NEOPIXEL RING
 #define NeoPixelPIN 9
@@ -18,21 +39,16 @@
 #define ButtonInPIN 10 
 #define ButtonUpPIN 3 
 
-
-// Set up
+///////////////////////
+// FEATURE SET UP
 
 // NEOPIXEL SETUP
 #define neoRingOrigin 9
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(17, NeoPixelPIN, NEO_GRB + NEO_KHZ800);
-
 int neoRingSize = 16;
 int neoRingLastPixel = neoRingSize - 1;
-int neoCenterPixelAddress = neoRingSize;
 
-int neoCenterColor = 1;
-int favoriteColor; // 227, 199, 55 all look beautiful
-
-// SPEAKER SETUP
+// PIEZO SPEAKER SETUP
 #define toneC    1911
 #define toneC1    1804
 #define toneD    1703
@@ -59,6 +75,25 @@ int favoriteColor; // 227, 199, 55 all look beautiful
 #define toneb       506
 #define tonep       0 
 
+// HUGGING
+int hugPowerMax = 15; // //LEDs labelled 0-15 one of these is the center pixel
+int hugPower = hugPowerMax; //starting level
+int hugsToday = 0;
+unsigned long timeOfLastHug;
+int neoPixelResiliance[16] =  { 2,4,8,16, 30,60,90,120, 300,450,600,900, 1800,3600,4800,10000 };
+int hugPowerResiliance[16];                      
+
+// TIMER FUNCTIONALITY
+unsigned long timeToggled;
+boolean onNow = false;
+
+
+///////////////////////
+// STORED SETTINGS
+int favoriteVizMode;
+int favoriteColor; // 227, 199, 55 all look beautiful
+boolean muted; // if i set this to true, the shit stops working... wtf
+boolean sleepDisplay = false;
 
 // EEPROM (Long Term Memory Storage)
 int timeSinceLastHugAddress = 0;
@@ -70,35 +105,20 @@ boolean mutedAddress = 4;
 int secondsUntilStore = 5;
 
 
-// GLOBAL VARIABLES
 
-// HUG VARIABLES
-int hugPowerMax = 15; // //LEDs labelled 0-15 one of these is the center pixel
-int hugPower = hugPowerMax; //starting level
-unsigned long timeOfLastHug;
-int neoPixelResiliance[16] =  { 2,4,8,16, 30,60,90,120, 300,450,600,900, 1800,3600,4800,10000 };
-int hugPowerResiliance[16];                      
-int hugsToday = 0;
 
-// MODE-SELECTION VARIABLES
-void breakOnTap(void (*mode_func)(boolean init));
-boolean onNow = false;
-int modeNumber = 0;
-unsigned long timeToggled;
-int favoriteVizMode;
 
-boolean muted; // if i set this to true, the shit stops working... wtf
-boolean sleepDisplay = false;
-
-// THE MODES AVAILABLE
+///////////////////////
+// MODE-SELECTION
 int numModes = 3;
 void (*modes[])(boolean) = {
     hugMode, 
     vizMode, 
     setColorMode
 };
+int modeNumber = 0;
 
-
+//void breakOnTap(void (*mode_func)(boolean init));
 
 
 
@@ -153,7 +173,7 @@ void loop(){
   // Run it once to initialize
   mode_func(true);
   
-  // Loop the Mode 
+  // Loop the Mode, Until Mode Button Pressed 
   while (true){  
     autoSetBrightness();
 
@@ -197,11 +217,10 @@ void loop(){
   // We just broke into the next mode
   modeNumber = (modeNumber + 1) % numModes;
   
-  // Since we switching modes, let's remember the settings of the current mode (these fx only actually do this if changed)
+  // Since we are switching modes, let's remember the settings of the current mode (these fx only actually do this if changed)
   storeFavoriteVizMode();
   storeFavoriteColor();
   
-  neoSetAll("black");
   playToneHappy();
   delay(200);
 }
@@ -509,11 +528,39 @@ void measureHug(){
   // RECORD HUG
   hugPower = newHugPower;
   incrementTotalHugsStore();
+  checkForAndCelebrateHugMilestone();
   hugsToday++; //this only does since last power on but whatever for now
   setTimeOfLastHugToNow();
 }
 
 
+
+
+
+void checkForAndCelebrateHugMilestone(){
+  int totalHugs = getTotalHugsStore();
+
+  if (totalHugs % 1000 == 0){
+    theaterChaseRainbow(5);
+    showTotalHugs();
+    delay(2000);
+  } else if (totalHugs % 100 == 0){
+    theaterChase(color("yellow"),50);
+    showTotalHugs();
+    delay(2000);
+  } else if (totalHugs % 10 == 0){
+    theaterChase(color("red"),25);
+    showTotalHugs();
+    delay(2000);
+  }
+  
+  
+//  else if (totalHugs % 5 == 0){
+//    theaterChase(color("blue"),25);
+//    showTotalHugs();
+//    delay(1000);
+//  }
+}
 
 
 
@@ -800,6 +847,7 @@ void rainbowCycle() {
 //Theatre-style crawling lights.
 void theaterChase(uint32_t c, uint8_t wait) {
   for (int j=0; j<10; j++) {  //do 10 cycles of chasing
+    playToneHappy();
     for (int q=0; q < 3; q++) {
       for (int i=0; i < neoRingSize; i=i+3) {
         strip.setPixelColor(i+q, c);    //turn every third pixel on
@@ -811,25 +859,27 @@ void theaterChase(uint32_t c, uint8_t wait) {
       for (int i=0; i < neoRingSize; i=i+3) {
         strip.setPixelColor(i+q, 0);        //turn every third pixel off
       }
+      
     }
   }
 }
 
 //Theatre-style crawling lights with rainbow effect
 void theaterChaseRainbow(uint8_t wait) {
-  for (int j=0; j < 256; j++) {     // cycle all 256 colors in the wheel
+  for (int j=0; j < 256; j+=30) {     // cycle all 256 colors in the wheel
     for (int q=0; q < 3; q++) {
         for (int i=0; i < neoRingSize; i=i+3) {
           strip.setPixelColor(i+q, Wheel( (i+j) % 255));    //turn every third pixel on
         }
         strip.show();
-       
+        
         delay(wait);
        
         for (int i=0; i < neoRingSize; i=i+3) {
           strip.setPixelColor(i+q, 0);        //turn every third pixel off
         }
     }
+    playToneHappy();
   }
 }
 
